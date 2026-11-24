@@ -13,6 +13,8 @@ in Natural Language* (ICPE 2027, Industry Track):
 
 | Path | What it is |
 |---|---|
+| [`QUESTIONS.md`](QUESTIONS.md) | All 112 questions (56 questions in a precise and an everyday wording), by category, with the traces each was asked of. |
+| [`SYMPTOMS.md`](SYMPTOMS.md) | The 48 symptoms in 7 groups: what counts as present, how users ask about it, and which program and fault show it. |
 | `traceassist/plugin/` | The TraceAssist Trace Compass plug-in: the answer pipeline, analyzers and answer writer (`src/`), the three AI skills and 13 view descriptions (`skills/`), and the Trace Server bundle with its build scripts and launcher (`server/`). |
 | `traceassist/tracecompass-patch/` | The only change to Trace Compass: `AbstractCriticalPathModule.java` from `analysis.graph.core`, which adds a time window to the critical path. |
 | `traceassist/dist/` | The frozen binaries. `org.eclipse.tracecompass.traceassist.server_0.1.0.jar` is the server bundle used for every reported answer. `traceassist-server.jar` is a launcher that installs that bundle and the critical-path patch into a Trace Server and starts it. |
