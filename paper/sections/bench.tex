@@ -1,0 +1,72 @@
+% 4 The symptom bench -- 1.25 pages (incl. Table 1)
+\section{The Symptom Bench}
+\label{sec:bench}
+
+A question whose answer is always ``yes'' cannot reveal a tool that reports problems that are not there. The bench therefore pairs every fault with a \emph{negative control}: the same program run healthy, or with a different fault, under the same background activity. Asking the same question of both traces measures true and false positives and negatives.
+
+\subsection{Symptoms, Programs and Faults}
+
+We collected 48 performance symptoms that engineers ask about, in seven groups: \emph{timing} (7, e.g., a one-off delay, jitter, tail latency), \emph{waiting} (12, e.g., a bottleneck thread, deadlock, lock contention, priority inversion, waiting on disk or the network), \emph{CPU} (11, e.g., a CPU hog, scheduling delay, load imbalance, interrupt storm), \emph{system calls and I/O} (7, e.g., slow calls, polling, file churn), \emph{lifecycle} (4, e.g., crash, thread churn), \emph{pipelines} (4, e.g., the slowest stage, thundering herd), and \emph{unexpected} behaviour (3). Each has a written criterion for ``present''.
+
+We wrote nine C programs, each one workload with a \texttt{-{}-fault} switch (Table~\ref{tab:programs}). \texttt{-{}-fault none} is the healthy run; every other value injects one problem. The 44 faults and 9 healthy runs make 53 scenarios that cover all 48 symptoms. The faults are real behaviour, not simulated events: the interrupt storm, for example, has a thread issue small direct disk reads from the victim's CPU, whose NVMe completion interrupts take about 22\% of that CPU for 12\,s.
+
+\begin{table}[t]
+\centering
+\caption{The nine bench programs and their faults. Each also has a healthy run.}
+\label{tab:programs}
+\footnotesize
+\setlength{\tabcolsep}{3pt}
+\begin{tabularx}{\columnwidth}{@{}>{\raggedright\arraybackslash}p{1.45cm}>{\raggedright\arraybackslash}X@{}}
+\toprule
+Program & Workload; faults \\
+\midrule
+\texttt{batch\_server} & Coordinator hands work to 4 workers per round; lock holder sleeps, contention, convoy, deadlock, hang, priority inversion \\
+\texttt{ticker} & Sampler that must run every 2\,ms; one-off delay, jitter, gradual slowdown, sudden change, oversleeping, real-time preemption \\
+\texttt{crunch} & 8 compute threads meeting at a barrier; load imbalance, barrier straggler, CPU hog, busy-wait, CPU starvation, oversubscription, migrations, odd worker \\
+\texttt{filestore} & Record store with writer, reader, stats threads; disk wait, small calls, polling, retry loop, file churn, unexpected scan \\
+\texttt{pipeline} & Reader $\rightarrow$ parser $\rightarrow$ 4 sinks over bounded queues; slow stage, bursty input, thundering herd, idle workers, idle thread \\
+\texttt{kvstore} & 4 clients and a server process over loopback TCP; slow backend, tail latency, network wait \\
+\texttt{cachesvc} & In-memory cache with a loader and 2 servers; memory pressure, allocation churn \\
+\texttt{jobrunner} & Dispatcher with a pool of 4 job threads; slow start-up, slow shutdown, crash, fork storm, thread churn, never exits \\
+\texttt{reporter} & Renders a report every 50\,ms; noisy neighbour process, interrupt storm \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\textbf{Keeping the trace the only evidence.} Thread, process and file names never name the fault, and every trace gets a random name. CPU work is a calibrated arithmetic loop, so a busy thread leaves no misleading system calls. Threads that wake each other share a CPU, avoiding a known misattribution of cross-CPU wake-ups in Trace Compass's critical path. Runs that stay stuck (deadlock, hang, never exits) are ended by a watchdog only after tracing has stopped.
+
+\subsection{Traces and Ground Truth}
+
+Each scenario was recorded for 30\,s with LTTng kernel tracing of the whole machine: scheduling, system calls, timers (including high-resolution timer starts and cancels), interrupts, and network, block-device and signal events. Three scenarios were recorded again \emph{without} the events their symptom depends on (a crash without signal events, a disk wait without block events, a network wait without network events), where the correct answer is that the trace cannot show it. The 56 traces hold 1.4--25.3 million events each (159 million in all, 5\,GB), with no events discarded. Every trace also contains the desktop's own activity, so ``absent'' is reliable only for the program itself, and every graded question names its program.
+
+Each program writes its own answer key while it runs, through a pipe rather than a file the trace could record: the symptoms its fault makes \emph{present}; those arguably present as a side effect, marked \emph{don't care} and not graded; every thread with its ID; when the fault acts; and the program's own measurements, such as round times and lock waits. Every other symptom is \emph{absent}.
+
+Vague words need thresholds. A healthy thread is sometimes delayed by a millisecond, and a healthy writer's \texttt{fdatasync} takes 2\,ms, so without a threshold ``yes'' is defensible on a healthy trace. We measured each symptom on every trace of its program and chose thresholds that separate the faults from the healthy runs, such as ``kept waiting to run for 1\,ms or more at least 50 times, or 10\,ms or more once''.
+
+\subsection{Questions and Pairs}
+
+\begin{table*}[t]
+\centering
+\caption{One bench question per category, in its two wordings, with the symptom, program and hub scope it tests.}
+\label{tab:questions}
+\footnotesize
+\setlength{\tabcolsep}{4pt}
+\begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}p{2.1cm}>{\raggedright\arraybackslash}X>{\raggedright\arraybackslash}p{5.2cm}@{}}
+\toprule
+Category (symptom, program, hub) & Precise wording & Everyday wording \\
+\midrule
+Comprehension (crash, \texttt{jobrunner}, single) & Does any process of jobrunner die from a signal (such as a segfault or an abort) instead of exiting normally? If so, which process, and which signal? & Did anything in jobrunner crash or get killed? What was it? \\
+Root cause (noisy neighbour, \texttt{reporter}, multi) & Does another process compete with reporter for its CPU and slow its work down by 25\% or more? If so, which process, and how much does reporter lose? & Is another program slowing reporter down? Which one, and by how much? \\
+Dependency (deadlock, \texttt{batch\_server}, multi) & Do two or more threads of batch\_server each hold a lock that another of them needs, so that they stay blocked for good? If so, which threads? & Are any threads in batch\_server waiting on each other forever? Which ones? \\
+Quantitative (one-off delay, \texttt{ticker}, single) & Does any cycle of ticker's sampler thread take far longer than usual (at least 5 times its normal length)? If so, when did it happen, and how late was it? & Did ticker's sampler hiccup once, with one cycle much later than all the others? When, and by how much? \\
+Remediation (small calls, \texttt{filestore}, single) & Does filestore make tens of thousands of tiny system calls per second where a few larger ones would do? If so, which calls, and what change would fix it? & Is filestore making thousands of tiny reads or writes? How should it be changed? \\
+\bottomrule
+\end{tabularx}
+\end{table*}
+
+
+There is one question per symptom and program that can show it: 56 questions. Each has a category, as in our prototype study (comprehension, root cause, dependency, quantitative, remediation), and a hub scope~\cite{ezaz2026taaf}: \emph{single-hub} questions concern one thread or process, \emph{multi-hub} ones combine evidence across several. Every question is written in two wordings, both naming the program. The \emph{precise} wording states exactly what counts, with a threshold where the symptom has a size; the \emph{everyday} wording keeps a user's vagueness (Table~\ref{tab:questions}). A remediation question first asks whether the problem exists, so on a trace without it the right answer is that there is nothing to fix. A question names only threads present in every trace of its program, so a name never reveals a fault.
+
+Each question is asked of up to five traces of its program: every trace where its symptom is present or cannot be seen, the healthy run, then the program's other faults, picked at random with a fixed seed. This gives 258 question--trace pairs: 74 where the symptom is present, 178 where it is absent, and 6 where the trace cannot show it (events that were not recorded, including page faults for memory pressure, and busy-waiting, which a kernel trace cannot tell apart from computing). With both wordings, each system gives 516 answers.
+
+Every system receives the same instruction after every question: \emph{``Begin your answer with exactly one line: `Verdict: yes', `Verdict: no', or `Verdict: cannot tell from this trace'. Then answer the question.''} Code reads the verdict, so the counts of true and false positives and negatives need no judge.

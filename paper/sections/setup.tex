@@ -1,0 +1,25 @@
+% 5 Experimental setup -- 0.9 page
+\section{Experimental Setup}
+\label{sec:setup}
+
+We compare \sysname with four baselines on the bench to answer RQ1--RQ5 (Section~\ref{sec:intro}), and score every answer the same way.
+
+\subsection{Baselines}
+
+The four baselines extend those of our earlier prototype evaluation. All use the same model as \sysname's answer writer, \texttt{gpt-6-luna} at its default reasoning effort, receive the question with the same verdict instruction, and see only the trace; none sees the answer key, the program's log or another system's answers. Every answer comes from a fresh call or session.
+
+\textbf{LLM only.} The model reads trace text exported by \texttt{babeltrace2}, one line per event. A trace is about 66 tokens per event, far beyond the context window, so the model gets a 200{,}000-token slice made of 20 time-labelled windows evenly spread over the whole trace, with a header stating the trace's full length and that most events are omitted. Each window covers a few milliseconds (0.2--13\,ms).
+
+\textbf{RAG.} The same slice, plus the six documents nearest to the question from \sysname's knowledge base, the top three expanded to their full source text. Unlike \sysname, retrieval uses the question alone.
+
+\textbf{TMLL.} TMLL~\cite{shahedi2025tmll} collects every analysis a plain Trace Server offers for the whole trace, such as CPU usage, thread and resource status, disk I/O, system-call latency statistics, futex contention and interrupts, sampled to fit a 200{,}000-token budget. The named program's process and threads get full detail. The model reads this evidence and answers; it cannot request more.
+
+\textbf{Codex.} A Codex CLI~\cite{codexcli} agent (version 0.167.0) in a container with a shell, \texttt{babeltrace2} and Python, the full trace mounted read-only, network access only to the model API, 4 CPUs, 8\,GB of memory and a 30-minute limit per question. It can investigate the whole trace however it chooses. It represents what an engineer with a general coding agent, but without Trace Compass, would get today.
+
+LLM only and RAG show what a chat model can do with trace text; TMLL, what it can do with Trace Compass's existing analyses but no question-specific computation; Codex, what an agent can compute for itself.
+
+\subsection{Scoring}
+
+Each verdict is classified against the answer key. On a pair where the symptom is \emph{present}, ``yes'' is a true positive (TP), and ``no'' or ``cannot tell'' a false negative (FN). On an \emph{absent} pair, ``yes'' is a false positive (FP) and ``no'' or ``cannot tell'' a true negative (TN); we also report how often a system abstains. The 12 answers on pairs the trace cannot show are reported separately. We report precision, recall, specificity, $F_1$ and \emph{balanced accuracy}~\cite{brodersen2010balanced}, the mean of recall and specificity: absent pairs outnumber present ones 2.4 to 1, so plain accuracy would reward always answering ``no''.
+
+\sysname answered every pair three times; the baselines once each, for cost. All systems are compared on their first run (516 answers each), and \sysname's other two runs measure its consistency (RQ4). The analyzers are deterministic, but its skills and answer writer are not, and the skill cache was turned off so that every run called the model. \sysname was frozen at one build and knowledge base before the runs used here; the build and knowledge base are fingerprinted in every saved answer.

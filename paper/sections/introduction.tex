@@ -1,0 +1,28 @@
+% 1 Introduction -- 1.15 pages
+\section{Introduction}
+\label{sec:intro}
+
+Large language models (LLMs) now sit inside search engines, editors and developer tools. They are reliable for knowledge that is common on the web, but struggle with information that is too large to process, where accuracy can drop even before the context limit is reached~\cite{liu2024lost}, and with rare or private information, such as a company's internal systems, that is poorly represented in their training data~\cite{kandpal2023longtail}. In both cases they can fill the gaps with convincing but unsupported claims~\cite{ji2023hallucination}.
+
+Execution traces combine both problems. A kernel tracer such as LTTng~\cite{desnoyers2006lttng} records every system call, scheduling decision and interrupt; 30 seconds of a small program on a desktop yields millions of events, about 66 tokens each as text, far beyond any context window. And a developer's question, such as \emph{why one thread is slow}, concerns one specific execution that appears in no training corpus. Tools such as Trace Compass~\cite{tracecompass} can answer it, but require expertise in kernel scheduling and in the tool's many views. Retrieval-augmented generation (RAG)~\cite{lewis2020rag} can add documentation, which explains what a \texttt{futex} wait is but not how long a thread waited or which thread woke it.
+
+\textbf{Industrial context.} \sysname was developed for Ciena, whose engineers analyze execution traces often. Answering even a simple question about a trace, such as \emph{why is this run slow?}, can take an engineer hours of work in Trace Compass's views; \sysname answers such a question in under two minutes (a median of 17\,s per answer on our bench). Two requirements followed. First, answers must come from the whole trace, with measured values an engineer can check in Trace Compass. Second, the assistant must not invent problems: an engineer who chases a false alarm in a large system loses hours, and stops trusting the tool.
+
+\sysname answers natural-language questions about Linux kernel traces by letting Trace Compass compute the evidence. Analyzers built on its kernel analyses produce measured \emph{findings}, such as how a thread's time divides between running, waiting for a CPU and being blocked, which thread ended each wait, or which waits never ended. Small LLM decisions, checked by code, map a question to the threads it means; statistical probes and retrieved documentation add context; and an LLM writes the answer from the findings alone. It is part of Trace Compass, and every answer opens the Trace Compass views that show its evidence, so the engineer can check it.
+
+An earlier prototype answered all 13 questions correctly about one program with one lock bug. That evaluation could not show the failure that matters most in practice, a claim that a problem exists when it does not, because every question had a real answer. We therefore built a \emph{symptom bench}: nine C programs whose fault switch injects one of 44 faults, or none, covering 48 symptoms engineers ask about. The 56 traces come with answer keys written by the programs themselves, and each question is asked both of traces with its symptom and of traces without it, in a precise and an everyday wording. We use the bench to answer five research questions:
+\textbf{RQ1} How accurately does \sysname detect the bench's symptoms, compared with four baselines?
+\textbf{RQ2} How often does each system report a problem that is not there, or decline to answer?
+\textbf{RQ3} Which symptoms, question types and wordings does each system get wrong?
+\textbf{RQ4} How consistent are \sysname's verdicts when the same question is asked again?
+\textbf{RQ5} What does an answer cost in time and money?
+
+On the bench's 516 answers per system, \sysname reaches a balanced accuracy of 0.93 (precision 0.85, recall 0.93), stable across three runs ($\pm$0.005). With the same answering model, baselines that read trace text, alone or with retrieved documentation, reach 0.58 and mostly decline to answer; a baseline given Trace Compass's standard analyses through TMLL~\cite{shahedi2025tmll} reaches 0.69; and a coding agent with the whole trace and a shell reaches 0.79, with 113 false alarms against \sysname's 24 and 13 times its median time per answer.
+
+Our contributions are:
+\begin{itemize}
+  \item \sysname, an assistant that grounds every statement in findings computed by Trace Compass from the whole trace, and its integration into Trace Compass (Section~\ref{sec:traceassist}).
+  \item A symptom bench of nine fault-switch programs, 56 traces with program-written answer keys, and 112 question wordings over 258 question--trace pairs, which measures false positives as well as answers (Section~\ref{sec:bench}).
+  \item A comparison with four baselines that use the same answering model, including a coding agent (Sections~\ref{sec:setup}--\ref{sec:results}).
+  \item Lessons from developing an LLM assistant against such a bench, and the open problems that remain (Sections~\ref{sec:lessons} and~\ref{sec:threats}).
+\end{itemize}

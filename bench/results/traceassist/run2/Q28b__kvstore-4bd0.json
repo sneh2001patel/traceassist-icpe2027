@@ -1,0 +1,642 @@
+{
+ "system": "traceassist",
+ "build": "a4162fd526b12d22",
+ "knowledge": "1d7092adf385d1ab",
+ "run": 2,
+ "id": "Q28b__kvstore-4bd0",
+ "question_id": "Q28b",
+ "run_id": "kvstore-4bd0",
+ "trace": "/home/snehpatel/research/TraceCompass AI Agent/symptom_bench/runs/kvstore-4bd0/trace/kernel",
+ "prompt": "Is kvstore slow talking to a remote server? Which thread is waiting, and for how long?\n\nBegin your answer with exactly one line: \"Verdict: yes\", \"Verdict: no\", or \"Verdict: cannot tell from this trace\". Then answer the question.",
+ "started": "2026-11-22T20:55:24-0500",
+ "status": "ok",
+ "answer": "Verdict: yes\n\n## Network wait\n\nOver the whole trace (offsets **0\u201330,614.626 ms**), **TID 648045 (`client-2`)** spent **29,798.496 ms blocked**\u2014**99.3% of its alive time**. The analysis attributes **2,482 waits totaling 29,789.750 ms** to network activity in `recvfrom`; a typical wait was **12.032 ms**. Its longest `recvfrom` lasted **21.641 ms**, starting at offset **24,430.850 ms**.\n\nThat is substantial time waiting for socket data, so the trace supports slow network-receive waits. It does **not** identify the remote endpoint or prove that a particular server caused the delay. [1]\n\n## Sources used:\n1) Blocking in recvfrom - https://man7.org/linux/man-pages/man2/recvfrom.2.html",
+ "response": {
+  "question": "Is kvstore slow talking to a remote server? Which thread is waiting, and for how long?\n\nBegin your answer with exactly one line: \"Verdict: yes\", \"Verdict: no\", or \"Verdict: cannot tell from this trace\". Then answer the question.",
+  "trace_path": "/home/snehpatel/research/TraceCompass AI Agent/symptom_bench/runs/kvstore-4bd0/trace/kernel",
+  "plan": {
+   "scope": "thread",
+   "tid": 648045,
+   "intent": "explain_time",
+   "describe_words": null,
+   "deviation_words": null,
+   "find_late_cycles": false,
+   "resolved_from_question": {
+    "tid": 648045,
+    "name": "client-2",
+    "matched": "thread search: TID 648045 (client-2): longest system call 21.641 ms, 1.2x the median of the other suspects (18.635 ms)",
+    "source": "thread_search"
+   },
+   "details_from": "thread_finder symptom slow_syscalls_io: [syscalls]",
+   "thread_finder": {
+    "scope": "thread",
+    "symptom": "slow_syscalls_io",
+    "target": {
+     "tid": null,
+     "pid": null,
+     "reason": "The question asks which kvstore thread is waiting during remote-server communication; no single thread is named or uniquely identified."
+    },
+    "suspects": [
+     {
+      "tid": 648043,
+      "pid": 648040,
+      "reason": "client-0 is a kvstore worker with 99.3% blocked time and 2,669 wakeups, consistent with repeated network request waits."
+     },
+     {
+      "tid": 648044,
+      "pid": 648040,
+      "reason": "client-1 has 99.3% blocked time and 2,696 wakeups, making it a strong candidate for network I/O waits."
+     },
+     {
+      "tid": 648045,
+      "pid": 648040,
+      "reason": "client-2 has 99.3% blocked time and 2,700 wakeups, consistent with repeated remote-server communication."
+     },
+     {
+      "tid": 648046,
+      "pid": 648040,
+      "reason": "client-3 has 99.2% blocked time and 2,748 wakeups, also strongly fitting a network-waiting client thread."
+     }
+    ],
+    "question_numbers": {
+     "magnitude_ms": null,
+     "period_ms": null,
+     "count": null,
+     "range_start_ms": null,
+     "range_end_ms": null
+    },
+    "follow_up": false,
+    "reasoning": "The named program is kvstore, but the requested answer is specifically which of its threads waits during remote communication, so this is thread scope with a slow-I/O symptom. All four client threads have nearly identical high blocked percentages and many wakeups, so they must be measured rather than selecting one prematurely.",
+    "target_clear": false,
+    "used": "search pick",
+    "picked": "TID 648045 (client-2)",
+    "search": {
+     "symptom": "slow_syscalls_io",
+     "pick": "TID 648045",
+     "pick_name": "client-2",
+     "pick_reason": "TID 648045 (client-2): longest system call 21.641 ms, 1.2x the median of the other suspects (18.635 ms)",
+     "pick_share_percent": 27.5,
+     "confidence": "low",
+     "exit": "all suspects searched",
+     "suspects": [
+      {
+       "tid": 648043,
+       "pid": 648040,
+       "label": "TID 648043",
+       "name": "client-0",
+       "finder_reason": "client-0 is a kvstore worker with 99.3% blocked time and 2,669 wakeups, consistent with repeated network request waits.",
+       "level_reached": 3,
+       "verdict": "match",
+       "verdict_reason": "client-0 spent 99.3% of its lifetime blocked, and its longest recvfrom waited 17.496 ms, identified as a network wait.",
+       "verdict_level": 3,
+       "score": 0.222,
+       "share_percent": 22.2,
+       "evidence": {
+        "level_1": {
+         "tid": 648043,
+         "available": true,
+         "lifetime_ms": 30017.932572,
+         "running_ms": 64.544051,
+         "user_mode_ms": 9.658041,
+         "kernel_mode_ms": 54.88601,
+         "waiting_for_cpu_ms": 137.434355,
+         "blocked_ms": 29802.374672,
+         "longest_blocked_ms": 17.476435,
+         "longest_blocked_start_ns": 1795224151501551236,
+         "longest_blocked_end_ns": 1795224151519027671,
+         "longest_blocked_start_offset_ms": 21379.862226,
+         "longest_wait_for_cpu_ms": 1.501452,
+         "longest_wait_for_cpu_start_ns": 1795224154581093218,
+         "longest_wait_for_cpu_end_ns": 1795224154582594670,
+         "longest_wait_for_cpu_start_offset_ms": 24459.404208,
+         "system_calls": 10222,
+         "in_system_calls_ms": 30008.274531,
+         "longest_system_call_ms": 17.496485,
+         "longest_system_call_start_ns": 1795224151501548406,
+         "longest_system_call_end_ns": 1795224151519044891,
+         "longest_system_call_start_offset_ms": 21379.859396,
+         "longest_system_call_name": "recvfrom"
+        },
+        "level_2": {
+         "claim": "10,222 system calls here (median 0.007 ms, p99 12.373 ms); the longest: recvfrom 17.496 ms at 21,379.859 ms; recvfrom 17.414 ms at 24,284.622 ms; recvfrom 16.322 ms at 654.041 ms; recvfrom 16.116 ms at 24,444.795 ms; recvfrom 15.254 ms at 22,448.273 ms.",
+         "call_count": 10222,
+         "median_ms": 0.00687,
+         "longest": [
+          {
+           "system_call": "recvfrom",
+           "duration_ms": 17.496485,
+           "start_offset_ms": 21379.859396
+          },
+          {
+           "system_call": "recvfrom",
+           "duration_ms": 17.413535,
+           "start_offset_ms": 24284.622208
+          },
+          {
+           "system_call": "recvfrom",
+           "duration_ms": 16.32248,
+           "start_offset_ms": 654.040998
+          }
+         ]
+        },
+        "level_3": {
+         "window": "its longest system call",
+         "start_offset_ms": 21379.859396,
+         "length_ms": 17.496484,
+         "findings": [
+          "decomposition: In this window, the thread's time was: 99.9% BLOCKED (17.476 ms), 0.1% RUNNABLE_WAITING_FOR_CPU (0.015 ms).",
+          "running.cpu_placement: It ran only on CPU 3 here (0.005 ms on the CPU).",
+          "blocked.wakers: Across its 1 waits here, what ended them: the network: 1 waits, 17.476 ms in total, typically 17.476 ms, in recvfrom.",
+          "blocked.syscalls: Blocked for 17.476 ms (99.9% of its alive time here); the 1 longest waits (longest 17.476 ms) were inside: recvfrom (1 of 1).",
+          "blocked.wake_chain: Critical path of TID 648043 over this gap, in time order: TID 648043 (client-0) NETWORK 17.476 ms. No participant besides the requested thread was found in the critical path for this window. This matches a known limitation, not necessarily a real absence of a cause: the wake may have come from a cross-CPU remote wakeup or a network/softirq-delivered event, neither of which OSCriticalPathModule can currently attribute to the real waking task."
+         ]
+        }
+       }
+      },
+      {
+       "tid": 648044,
+       "pid": 648040,
+       "label": "TID 648044",
+       "name": "client-1",
+       "finder_reason": "client-1 has 99.3% blocked time and 2,696 wakeups, making it a strong candidate for network I/O waits.",
+       "level_reached": 3,
+       "verdict": "match",
+       "verdict_reason": "client-1 spent 99.3% of its lifetime blocked, and its longest recvfrom waited 20.923 ms, identified as a network wait.",
+       "verdict_level": 3,
+       "score": 0.266,
+       "share_percent": 26.6,
+       "evidence": {
+        "level_1": {
+         "tid": 648044,
+         "available": true,
+         "lifetime_ms": 30009.910831,
+         "running_ms": 64.9722,
+         "user_mode_ms": 9.703702,
+         "kernel_mode_ms": 55.268498,
+         "waiting_for_cpu_ms": 146.798667,
+         "blocked_ms": 29791.852644,
+         "longest_blocked_ms": 20.903028,
+         "longest_blocked_start_ns": 1795224154420713658,
+         "longest_blocked_end_ns": 1795224154441616686,
+         "longest_blocked_start_offset_ms": 24299.024648,
+         "longest_wait_for_cpu_ms": 1.955121,
+         "longest_wait_for_cpu_start_ns": 1795224154033731849,
+         "longest_wait_for_cpu_end_ns": 1795224154035686970,
+         "longest_wait_for_cpu_start_offset_ms": 23912.042839,
+         "system_calls": 10274,
+         "in_system_calls_ms": 30000.205009,
+         "longest_system_call_ms": 20.922758,
+         "longest_system_call_start_ns": 1795224154420711458,
+         "longest_system_call_end_ns": 1795224154441634216,
+         "longest_system_call_start_offset_ms": 24299.022448,
+         "longest_system_call_name": "recvfrom"
+        },
+        "level_2": {
+         "claim": "10,274 system calls here (median 0.007 ms, p99 12.402 ms); the longest: recvfrom 20.923 ms at 24,299.022 ms; recvfrom 17.907 ms at 28,945.829 ms; recvfrom 17.868 ms at 2,829.806 ms; recvfrom 17.497 ms at 28,779.803 ms; recvfrom 16.335 ms at 4,748.094 ms.",
+         "call_count": 10274,
+         "median_ms": 0.00692,
+         "longest": [
+          {
+           "system_call": "recvfrom",
+           "duration_ms": 20.922758,
+           "start_offset_ms": 24299.022448
+          },
+          {
+           "system_call": "recvfrom",
+           "duration_ms": 17.906503,
+           "start_offset_ms": 28945.828609
+          },
+          {
+           "system_call": "recvfrom",
+           "duration_ms": 17.867543,
+           "start_offset_ms": 2829.80642
+          }
+         ]
+        },
+        "level_3": {
+         "window": "its longest system call",
+         "start_offset_ms": 24299.022448,
+         "length_ms": 20.922757,
+         "findings": [
+          "decomposition: In this window, the thread's time was: 99.9% BLOCKED (20.903 ms), 0.1% RUNNABLE_WAITING_FOR_CPU (0.015 ms).",
+          "running.cpu_placement: It ran only on CPU 4 here (0.005 ms on the CPU).",
+          "blocked.wakers: Across its 1 waits here, what ended them: the network: 1 waits, 20.903 ms in total, typically 20.903 ms, in recvfrom.",
+          "blocked.syscalls: Blocked for 20.903 ms (99.9% of its alive time here); the 1 longest waits (longest 20.903 ms) were inside: recvfrom (1 of 1).",
+          "blocked.wake_chain: Critical path of TID 648044 over this gap, in time order: TID 648044 (client-1) NETWORK 20.903 ms. No participant besides the requested thread was found in the critical path for this window. This matches a known limitation, not necessarily a real absence of a cause: the wake may have come from a cross-CPU remote wakeup or a network/softirq-delivered event, neither of which OSCriticalPathModule can currently attribute to the real waking task."
+         ]
+        }
+       }
+      },
+      {
+       "tid": 648045,
+       "pid": 648040,
+       "label": "TID 648045",
+       "name": "client-2",
+       "finder_reason": "client-2 has 99.3% blocked time and 2,700 wakeups, consistent with repeated remote-server communication.",
+       "level_reached": 3,
+       "verdict": "match",
+       "verdict_reason": "client-2 spent 99.3% of its lifetime blocked, and its longest recvfrom waited 21.641 ms, identified as a network wait.",
+       "verdict_level": 3,
+       "score": 0.275,
+       "share_percent": 27.5,
+       "evidence": {
+        "level_1": {
+         "tid": 648045,
+         "available": true,
+         "lifetime_ms": 30009.901451,
+         "running_ms": 65.021095,
+         "user_mode_ms": 9.741171,
+         "kernel_mode_ms": 55.279924,
+         "waiting_for_cpu_ms": 140.287589,
+         "blocked_ms": 29798.495606,
+         "longest_blocked_ms": 21.615364,
+         "longest_blocked_start_ns": 1795224130673574207,
+         "longest_blocked_end_ns": 1795224130695189571,
+         "longest_blocked_start_offset_ms": 551.885197,
+         "longest_wait_for_cpu_ms": 2.821636,
+         "longest_wait_for_cpu_start_ns": 1795224134952520089,
+         "longest_wait_for_cpu_end_ns": 1795224134955341725,
+         "longest_wait_for_cpu_start_offset_ms": 4830.831079,
+         "system_calls": 10261,
+         "in_system_calls_ms": 30000.1584,
+         "longest_system_call_ms": 21.640754,
+         "longest_system_call_start_ns": 1795224154552539087,
+         "longest_system_call_end_ns": 1795224154574179841,
+         "longest_system_call_start_offset_ms": 24430.850077,
+         "longest_system_call_name": "recvfrom"
+        },
+        "level_2": {
+         "claim": "10,261 system calls here (median 0.007 ms, p99 12.384 ms); the longest: recvfrom 21.641 ms at 24,430.850 ms; recvfrom 21.634 ms at 551.882 ms; recvfrom 21.056 ms at 4,750.752 ms; recvfrom 17.889 ms at 21,533.857 ms; recvfrom 17.860 ms at 15,066.758 ms.",
+         "call_count": 10261,
+         "median_ms": 0.00713,
+         "longest": [
+          {
+           "system_call": "recvfrom",
+           "duration_ms": 21.640754,
+           "start_offset_ms": 24430.850077
+          },
+          {
+           "system_call": "recvfrom",
+           "duration_ms": 21.634334,
+           "start_offset_ms": 551.882497
+          },
+          {
+           "system_call": "recvfrom",
+           "duration_ms": 21.056017,
+           "start_offset_ms": 4750.75228
+          }
+         ]
+        },
+        "level_3": {
+         "window": "its longest system call",
+         "start_offset_ms": 24430.850077,
+         "length_ms": 21.640753,
+         "findings": [
+          "decomposition: In this window, the thread's time was: 98.2% BLOCKED (21.258 ms), 1.7% RUNNABLE_WAITING_FOR_CPU (0.376 ms).",
+          "running.cpu_placement: It ran only on CPU 5 here (0.006 ms on the CPU).",
+          "blocked.wakers: Across its 1 waits here, what ended them: the network: 1 waits, 21.258 ms in total, typically 21.258 ms, in recvfrom.",
+          "blocked.syscalls: Blocked for 21.258 ms (98.2% of its alive time here); the 1 longest waits (longest 21.258 ms) were inside: recvfrom (1 of 1).",
+          "blocked.wake_chain: Critical path of TID 648045 over this gap, in time order: TID 648045 (client-2) NETWORK 21.258 ms. No participant besides the requested thread was found in the critical path for this window. This matches a known limitation, not necessarily a real absence of a cause: the wake may have come from a cross-CPU remote wakeup or a network/softirq-delivered event, neither of which OSCriticalPathModule can currently attribute to the real waking task."
+         ]
+        }
+       }
+      },
+      {
+       "tid": 648046,
+       "pid": 648040,
+       "label": "TID 648046",
+       "name": "client-3",
+       "finder_reason": "client-3 has 99.2% blocked time and 2,748 wakeups, also strongly fitting a network-waiting client thread.",
+       "level_reached": 3,
+       "verdict": "match",
+       "verdict_reason": "client-3 spent 99.2% of its lifetime blocked, and its longest recvfrom waited 18.635 ms, identified as a network wait.",
+       "verdict_level": 3,
+       "score": 0.237,
+       "share_percent": 23.7,
+       "evidence": {
+        "level_1": {
+         "tid": 648046,
+         "available": true,
+         "lifetime_ms": 30018.878478,
+         "running_ms": 64.393872,
+         "user_mode_ms": 9.697611,
+         "kernel_mode_ms": 54.696261,
+         "waiting_for_cpu_ms": 148.292864,
+         "blocked_ms": 29791.390474,
+         "longest_blocked_ms": 18.617909,
+         "longest_blocked_start_ns": 1795224134942731807,
+         "longest_blocked_end_ns": 1795224134961349716,
+         "longest_blocked_start_offset_ms": 4821.042797,
+         "longest_wait_for_cpu_ms": 1.906141,
+         "longest_wait_for_cpu_start_ns": 1795224145722636472,
+         "longest_wait_for_cpu_end_ns": 1795224145724542613,
+         "longest_wait_for_cpu_start_offset_ms": 15600.947462,
+         "system_calls": 10347,
+         "in_system_calls_ms": 30009.163187,
+         "longest_system_call_ms": 18.634839,
+         "longest_system_call_start_ns": 1795224134942728397,
+         "longest_system_call_end_ns": 1795224134961363236,
+         "longest_system_call_start_offset_ms": 4821.039387,
+         "longest_system_call_name": "recvfrom"
+        },
+        "level_2": {
+         "claim": "10,347 system calls here (median 0.007 ms, p99 12.375 ms); the longest: recvfrom 18.635 ms at 4,821.039 ms; recvfrom 18.015 ms at 13,904.454 ms; recvfrom 17.471 ms at 411.127 ms; recvfrom 15.448 ms at 4,805.563 ms; recvfrom 15.198 ms at 22,436.581 ms.",
+         "call_count": 10347,
+         "median_ms": 0.00692,
+         "longest": [
+          {
+           "system_call": "recvfrom",
+           "duration_ms": 18.634839,
+           "start_offset_ms": 4821.039387
+          },
+          {
+           "system_call": "recvfrom",
+           "duration_ms": 18.015222,
+           "start_offset_ms": 13904.454374
+          },
+          {
+           "system_call": "recvfrom",
+           "duration_ms": 17.470955,
+           "start_offset_ms": 411.126883
+          }
+         ]
+        },
+        "level_3": {
+         "window": "its longest system call",
+         "start_offset_ms": 4821.039387,
+         "length_ms": 18.634838,
+         "findings": [
+          "decomposition: In this window, the thread's time was: 99.9% BLOCKED (18.618 ms), 0.1% RUNNABLE_WAITING_FOR_CPU (0.009 ms).",
+          "running.cpu_placement: It ran only on CPU 6 here (0.007 ms on the CPU).",
+          "blocked.wakers: Across its 1 waits here, what ended them: the network: 1 waits, 18.618 ms in total, typically 18.618 ms, in recvfrom.",
+          "blocked.syscalls: Blocked for 18.618 ms (99.9% of its alive time here); the 1 longest waits (longest 18.618 ms) were inside: recvfrom (1 of 1).",
+          "blocked.wake_chain: Critical path of TID 648046 over this gap, in time order: TID 648046 (client-3) NETWORK 18.618 ms. No participant besides the requested thread was found in the critical path for this window. This matches a known limitation, not necessarily a real absence of a cause: the wake may have come from a cross-CPU remote wakeup or a network/softirq-delivered event, neither of which OSCriticalPathModule can currently attribute to the real waking task."
+         ]
+        }
+       }
+      }
+     ],
+     "judge": [
+      {
+       "level": 2,
+       "status": "done",
+       "cached": false,
+       "verdicts": [
+        {
+         "suspect": "TID 648043",
+         "verdict": "match",
+         "reason": "It spent 29,802 ms blocked and its longest call was recvfrom at 17.496 ms, consistent with waiting on network input."
+        },
+        {
+         "suspect": "TID 648044",
+         "verdict": "match",
+         "reason": "It spent 29,792 ms blocked and its longest call was recvfrom at 20.923 ms, consistent with waiting on network input."
+        },
+        {
+         "suspect": "TID 648045",
+         "verdict": "match",
+         "reason": "It spent 29,798 ms blocked and its longest call was recvfrom at 21.641 ms, consistent with waiting on network input."
+        },
+        {
+         "suspect": "TID 648046",
+         "verdict": "match",
+         "reason": "It spent 29,791 ms blocked and its longest call was recvfrom at 18.635 ms, consistent with waiting on network input."
+        }
+       ],
+       "reasoning": "All four kvstore client threads repeatedly made about 10,000 recvfrom calls and spent about 29.8 seconds blocked; their longest calls were roughly 17\u201322 ms. The measurements support network-receive waits but do not identify a single client as uniquely responsible.",
+       "ms": 7956.163
+      },
+      {
+       "level": 3,
+       "status": "done",
+       "cached": false,
+       "verdicts": [
+        {
+         "suspect": "TID 648043",
+         "verdict": "match",
+         "reason": "client-0 spent 99.3% of its lifetime blocked, and its longest recvfrom waited 17.496 ms, identified as a network wait."
+        },
+        {
+         "suspect": "TID 648044",
+         "verdict": "match",
+         "reason": "client-1 spent 99.3% of its lifetime blocked, and its longest recvfrom waited 20.923 ms, identified as a network wait."
+        },
+        {
+         "suspect": "TID 648045",
+         "verdict": "match",
+         "reason": "client-2 spent 99.3% of its lifetime blocked, and its longest recvfrom waited 21.641 ms, identified as a network wait."
+        },
+        {
+         "suspect": "TID 648046",
+         "verdict": "match",
+         "reason": "client-3 spent 99.2% of its lifetime blocked, and its longest recvfrom waited 18.635 ms, identified as a network wait."
+        }
+       ],
+       "reasoning": "All four client threads show repeated recvfrom calls and network waits, with longest waits of about 17.5\u201321.6 ms. The trace supports that kvstore workers are waiting on network activity, though it does not identify a remote-server task as the cause.",
+       "ms": 5044.688
+      }
+     ],
+     "budget": {
+      "event_count": 2386797,
+      "cap_events": 1790098,
+      "spent_events": 942128,
+      "spent_percent_of_cap": 52.6,
+      "wall_ms": 15187.678,
+      "analyses": [
+       {
+        "suspect": "TID 648043",
+        "level": 1,
+        "analysis": "state profile (state history)",
+        "estimated_cost_events": 117014,
+        "status": "done",
+        "ms": 108.999
+       },
+       {
+        "suspect": "TID 648044",
+        "level": 1,
+        "analysis": "state profile (state history)",
+        "estimated_cost_events": 116983,
+        "status": "done",
+        "ms": 96.496
+       },
+       {
+        "suspect": "TID 648045",
+        "level": 1,
+        "analysis": "state profile (state history)",
+        "estimated_cost_events": 116983,
+        "status": "done",
+        "ms": 109.745
+       },
+       {
+        "suspect": "TID 648046",
+        "level": 1,
+        "analysis": "state profile (state history)",
+        "estimated_cost_events": 117018,
+        "status": "done",
+        "ms": 108.29
+       },
+       {
+        "suspect": "TID 648045",
+        "level": 2,
+        "analysis": "syscalls.longest (state system)",
+        "estimated_cost_events": 116983,
+        "status": "done",
+        "ms": 112.248
+       },
+       {
+        "suspect": "TID 648044",
+        "level": 2,
+        "analysis": "syscalls.longest (state system)",
+        "estimated_cost_events": 116983,
+        "status": "done",
+        "ms": 125.107
+       },
+       {
+        "suspect": "TID 648046",
+        "level": 2,
+        "analysis": "syscalls.longest (state system)",
+        "estimated_cost_events": 117018,
+        "status": "done",
+        "ms": 113.521
+       },
+       {
+        "suspect": "TID 648043",
+        "level": 2,
+        "analysis": "syscalls.longest (state system)",
+        "estimated_cost_events": 117014,
+        "status": "done",
+        "ms": 113.292
+       },
+       {
+        "suspect": "TID 648045",
+        "level": 3,
+        "analysis": "state split and per-state explainers of its longest system call",
+        "estimated_cost_events": 1687,
+        "status": "done",
+        "ms": 341.367
+       },
+       {
+        "suspect": "TID 648044",
+        "level": 3,
+        "analysis": "state split and per-state explainers of its longest system call",
+        "estimated_cost_events": 1631,
+        "status": "done",
+        "ms": 336.981
+       },
+       {
+        "suspect": "TID 648046",
+        "level": 3,
+        "analysis": "state split and per-state explainers of its longest system call",
+        "estimated_cost_events": 1453,
+        "status": "done",
+        "ms": 289.379
+       },
+       {
+        "suspect": "TID 648043",
+        "level": 3,
+        "analysis": "state split and per-state explainers of its longest system call",
+        "estimated_cost_events": 1364,
+        "status": "done",
+        "ms": 330.772
+       }
+      ]
+     }
+    }
+   }
+  },
+  "target": {
+   "tid": 648045,
+   "name": "client-2",
+   "trace_path": "/home/snehpatel/research/TraceCompass AI Agent/symptom_bench/runs/kvstore-4bd0/trace/kernel"
+  },
+  "view_plan": {
+   "source": "view_picker",
+   "views": [
+    {
+     "id": "org.eclipse.tracecompass.analysis.timing.ui.segstore.table:org.eclipse.tracecompass.analysis.os.linux.latency.syscall",
+     "name": "System Call Latencies",
+     "key": "syscall_latency_table",
+     "look_at": "Find TID 648045 (client-2)\u2019s longest recvfrom call and its duration: the evidence identifies a 21.641 ms call at this moment.",
+     "tsp_output": "org.eclipse.tracecompass.analysis.timing.core.segmentstore.SegmentStoreTableDataProvider:org.eclipse.tracecompass.analysis.os.linux.latency.syscall"
+    },
+    {
+     "id": "org.eclipse.tracecompass.analysis.os.linux.views.controlflow",
+     "name": "Control Flow",
+     "key": "control_flow",
+     "look_at": "Inspect TID 648045 (client-2)\u2019s row to see it blocked during the recvfrom wait and how that state fits with its activity around the call.",
+     "tsp_output": "org.eclipse.tracecompass.internal.analysis.os.linux.core.threadstatus.ThreadStatusDataProvider"
+    }
+   ],
+   "selection": {
+    "start_ns": 1795224154552539087,
+    "end_ns": 1795224154574179840,
+    "start_offset_ms": 24430.850077,
+    "end_offset_ms": 24452.49083
+   },
+   "zoom": {
+    "start_ns": 1795224154552539087,
+    "end_ns": 1795224154574179840,
+    "rule": "System Call Latencies: pad 0.00 x the moment each side, at least 0 ms"
+   },
+   "moment": "longest_syscall",
+   "select_tid": 648045,
+   "plot_tids": [],
+   "plot_series": [],
+   "reason": "the thread's longest system call (recvfrom, 21.641 ms)",
+   "picker_reasoning": "The longest recvfrom is the clearest moment for showing how long client-2 waited, and the table identifies the call and its duration. Control Flow adds the thread\u2019s state context; the trace shows network waits but does not establish that the peer was a remote server.",
+   "views_not_offered": [
+    "kernel_memory (no kmem_mm_page_* events in the trace)"
+   ],
+   "rule_based": {
+    "views": [
+     "System Call Latency vs Time",
+     "System Call Latencies",
+     "Control Flow"
+    ],
+    "reason": "the thread's longest system call (recvfrom)"
+   },
+   "clock_range": "20:22:34.552 539 087 \u2013 20:22:34.574 179 840",
+   "summary": "System Call Latencies + Control Flow, 24,430.850\u201324,452.491 ms into the trace (20:22:34.552 539 087 \u2013 20:22:34.574 179 840 on the views' time axis) (TID 648045 selected): the thread's longest system call (recvfrom, 21.641 ms).\n- **System Call Latencies:** Find TID 648045 (client-2)\u2019s longest recvfrom call and its duration: the evidence identifies a 21.641 ms call at this moment.\n- **Control Flow:** Inspect TID 648045 (client-2)\u2019s row to see it blocked during the recvfrom wait and how that state fits with its activity around the call."
+  },
+  "why_section": "**Why this thread:** TID 648045 (client-2), 28%. client-2 spent 99.3% of its lifetime blocked, and its longest recvfrom waited 21.641 ms, identified as a network wait. Also look at TID 648043 (client-0) (22%): client-0 spent 99.3% of its lifetime blocked, and its longest recvfrom waited 17.496 ms, identified as a network wait; TID 648044 (client-1) (27%): client-1 spent 99.3% of its lifetime blocked, and its longest recvfrom waited 20.923 ms, identified as a network wait; TID 648046 (client-3) (24%): client-3 spent 99.2% of its lifetime blocked, and its longest recvfrom waited 18.635 ms, identified as a network wait. Confidence: low.",
+  "stage_durations_ms": {
+   "target_resolver": 9.228605,
+   "thread_finder": 6297.804121,
+   "thread_search": 15187.732523,
+   "trace_overview": 0.09051,
+   "unified_explainer": 520.261862,
+   "process_context": 0.113509,
+   "tmll_analysis": 46354.990997,
+   "rag_retrieval": 475.866878,
+   "view_picker": 5126.300051,
+   "llm_call": 9905.233027
+  },
+  "trace_source": "own_copy",
+  "findings_count": 13,
+  "response_id": "resp_0df7c0275e443050006b039d567e7487d19463a022ccf03704",
+  "model": "gpt-6-luna",
+  "usage": {
+   "input_tokens": 18247,
+   "input_tokens_details": {
+    "cache_write_tokens": 14298,
+    "cache_write_tokens_details": {
+     "ttl_12h_tokens": 0,
+     "ttl_30m_tokens": 14298
+    },
+    "cached_tokens": 3946
+   },
+   "output_tokens": 890,
+   "output_tokens_details": {
+    "reasoning_tokens": 693
+   },
+   "total_tokens": 19137
+  }
+ },
+ "elapsed_s": 83.88,
+ "model": "gpt-6-luna",
+ "verdict": {
+  "verdict": "present",
+  "position": "first",
+  "line": "Verdict: yes"
+ }
+}

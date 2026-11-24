@@ -1,0 +1,39 @@
+{
+ "system": "codex",
+ "build": "583a6ff11f5adb23",
+ "run": 1,
+ "id": "Q56a__pipeline-9a66",
+ "question_id": "Q56a",
+ "run_id": "pipeline-9a66",
+ "trace": "/home/snehpatel/research/TraceCompass AI Agent/symptom_bench/runs/pipeline-9a66/trace/kernel",
+ "prompt": "In pipeline, does each new item wake many waiting threads, with all but one going straight back to sleep? If so, which threads, and what change would fix it?\n\nBegin your answer with exactly one line: \"Verdict: yes\", \"Verdict: no\", or \"Verdict: cannot tell from this trace\". Then answer the question.",
+ "started": "2026-11-23T16:58:13-0500",
+ "model": "gpt-6-luna",
+ "reasoning_effort": "medium",
+ "question_timeout_s": 1800,
+ "elapsed_s": 619.67,
+ "exit_code": 0,
+ "session_id": "01a20a6a-b07a-76b0-99e0-0e45d176f7ff",
+ "turns": 1,
+ "usage": {
+  "input_tokens": 1243035,
+  "cached_tokens": 1172221,
+  "output_tokens": 16829,
+  "reasoning_tokens": 10509
+ },
+ "n_commands": 16,
+ "item_types": {
+  "agent_message": 4,
+  "command_execution": 16
+ },
+ "flagged_commands": [],
+ "errors": [],
+ "warnings": [],
+ "answer": "Verdict: no\n\nThe hot path does not show a thundering herd. `reader` (TID 642978, CPU 3) uses `FUTEX_WAKE_PRIVATE` with `val=1`; 59,663 of 59,666 calls woke a waiter. `parser` (TID 642977, CPU 4) was woken about 59,662 times, then woke the sink threads individually.\n\nThe sinks were woken about 15,000 times each: `sink-0` (TID 642973, CPU 5), `sink-1` (642974, CPU 6), `sink-2` (642975, CPU 7), and `sink-3` (642976, CPU 8). Their `FUTEX_WAIT_BITSET` calls show waits around 1.5 ms in representative samples, consistent with waiting for work\u2014not waking and immediately going back to sleep. The parser\u2019s hot-path wake calls also use `val=1`; only three calls used `2147483647`.\n\nSo the observed handoff wakes the parser and a sink as work moves through the pipeline; it does not wake all four sinks for each item. A herd fix such as replacing `notify_all` with `notify_one` is already reflected in the hot-path futex calls. The trace gives no evidence that a code change is needed for this issue.",
+ "status": "ok",
+ "verdict": {
+  "verdict": "absent",
+  "position": "first",
+  "line": "Verdict: no"
+ }
+}

@@ -1,0 +1,81 @@
+[
+{"program": "batch_server", "description": "a coordinator hands one batch per round to 4 workers and waits for all of them; worker-2 commits results under cache_lock, which a flusher thread also takes every round", "faults": [
+  {"name": "none", "summary": "no fault: the program's healthy baseline", "present": [], "dont_care": []},
+  {"name": "holder_sleeps", "summary": "the flusher holds cache_lock across a 40 ms sleep every round; worker-2 blocks on cache_lock (futex) and every round waits for worker-2 (batch_server <- worker-2 <- flusher <- timer)", "present": ["lock_holder_blocking", "long_blocked_waits", "bottleneck_thread", "thread_differences"], "dont_care": ["lock_contention", "slow_syscalls"]},
+  {"name": "contention", "summary": "each worker, on its own CPU, does its 5 ms as 40 short critical sections on one shared stats_lock, so the workers keep blocking on each other for short futex waits", "present": ["lock_contention"], "dont_care": ["convoy", "bottleneck_thread", "many_small_calls", "long_blocked_waits"]},
+  {"name": "convoy", "summary": "each worker, on its own CPU, holds one global lock for its whole 5 ms of work, so the four workers run one after another instead of in parallel", "present": ["convoy", "lock_contention"], "dont_care": ["long_blocked_waits", "bottleneck_thread"]},
+  {"name": "deadlock", "summary": "at 40% of the run, worker-1 takes lock A then B while worker-3 takes B then A; both block forever, and the coordinator waits forever for the round", "present": ["deadlock", "hang", "long_blocked_waits"], "dont_care": ["bottleneck_thread", "never_exits", "thread_differences"]},
+  {"name": "hang", "summary": "at 40% of the run, worker-3 blocks forever reading a pipe nobody writes to; the coordinator waits forever for the round (no lock cycle)", "present": ["hang", "long_blocked_waits"], "dont_care": ["bottleneck_thread", "never_exits", "thread_differences"]},
+  {"name": "priority_inversion", "summary": "on one CPU: worker-2 (SCHED_FIFO 10) needs cache_lock, held by the flusher (FIFO 1), which is preempted by the compactor (FIFO 5) burning 15 ms; worker-2 waits for the medium-priority thread", "present": ["priority_inversion", "long_blocked_waits", "bottleneck_thread", "thread_differences"], "dont_care": ["lock_holder_blocking", "scheduling_delay", "cpu_starvation", "lock_contention"]}
+]}
+,
+{"program": "ticker", "description": "a sampler thread runs every 2 ms (0.2 ms of work per cycle) and an uploader thread wakes every 500 ms", "faults": [
+  {"name": "none", "summary": "no fault: the program's healthy baseline", "present": [], "dont_care": []},
+  {"name": "one_off_delay", "summary": "once, at 50% of the run, the maintenance thread (SCHED_FIFO 10, same CPU) spins for 30 ms; the sampler wakes ~30 ms late once", "present": ["one_off_delay", "scheduling_delay"], "dont_care": ["cpu_starvation", "long_blocked_waits"]},
+  {"name": "jitter", "summary": "all run long, the maintenance thread (SCHED_FIFO 10, same CPU) spins 0.3-1.8 ms at random every 0.5-2.5 ms; the sampler's wake-up lateness varies from 0 to ~1.8 ms", "present": ["jitter", "scheduling_delay"], "dont_care": ["tail_latency"]},
+  {"name": "gradual_slowdown", "summary": "the sampler's work per cycle grows steadily from 0.1 ms to 3 ms over the run, so its cycles stretch and, past ~65% of the run, overrun the 2 ms period", "present": ["gradual_slowdown"], "dont_care": ["cpu_hog", "jitter"]},
+  {"name": "sudden_change", "summary": "at 50% of the run the sampler's work per cycle jumps from 0.2 ms to 2.5 ms, so every later cycle overruns the 2 ms period", "present": ["sudden_change"], "dont_care": ["cpu_hog"]},
+  {"name": "oversleeping", "summary": "the sampler's timer slack is 4 ms (prctl PR_SET_TIMERSLACK), so its 2 ms-period sleeps end up to 4 ms late", "present": ["oversleeping"], "dont_care": ["jitter", "tail_latency"]},
+  {"name": "rt_preempted", "summary": "the sampler runs at SCHED_FIFO 20; every 300 ms the maintenance thread (SCHED_FIFO 50, same CPU) spins for 5 ms and preempts it", "present": ["rt_preempted", "scheduling_delay"], "dont_care": ["jitter", "tail_latency", "one_off_delay"]}
+]}
+,
+{"program": "crunch", "description": "every 100 ms a coordinator gives 8 calc threads (one per CPU) 10 ms of CPU work each and waits for all of them", "faults": [
+  {"name": "none", "summary": "no fault: the program's healthy baseline", "present": [], "dont_care": []},
+  {"name": "load_imbalance", "summary": "calc-0 gets 4x the work (40 ms per round) and the other seven get 10 ms, every round; the others finish early and wait at the barrier for calc-0", "present": ["load_imbalance", "bottleneck_thread", "thread_differences"], "dont_care": ["barrier_straggler", "idle_workers", "long_blocked_waits"]},
+  {"name": "barrier_straggler", "summary": "every calc thread gets the same 10 ms of work, but a monitor thread (SCHED_FIFO 10) on calc-5's CPU spins 20 ms at the start of every round, so calc-5 is runnable but waiting and finishes last; everyone waits for it at the barrier", "present": ["barrier_straggler", "scheduling_delay", "bottleneck_thread"], "dont_care": ["cpu_starvation", "thread_differences", "rt_preempted", "long_blocked_waits"]},
+  {"name": "cpu_hog", "summary": "an indexer thread uses 100% of one CPU (its own) for the whole run", "present": ["cpu_hog"], "dont_care": ["thread_differences"]},
+  {"name": "busy_wait", "summary": "a collector thread spin-waits on a flag (no syscalls) for each round's results instead of blocking: 100% of one CPU, almost all of it waiting", "present": ["busy_wait", "cpu_hog"], "dont_care": ["thread_differences"]},
+  {"name": "cpu_starvation", "summary": "every 5 s a monitor thread (SCHED_FIFO 10) on calc-3's CPU spins for 2 s; calc-3 is runnable but barely runs, and its rounds stretch to ~1 s", "present": ["cpu_starvation", "scheduling_delay", "barrier_straggler", "bottleneck_thread"], "dont_care": ["one_off_delay", "tail_latency", "long_blocked_waits", "thread_differences", "rt_preempted"]},
+  {"name": "oversubscription", "summary": "32 calc threads share 4 CPUs (the healthy run has 8 threads on 8 CPUs), each with 10 ms of work per round; they wait in the run queues", "present": ["oversubscription", "scheduling_delay"], "dont_care": ["cpu_hog", "excessive_migrations", "jitter"]},
+  {"name": "migrations", "summary": "each calc thread moves itself to the next CPU (sched_setaffinity) after every 1 ms of work: ~800 migrations per second", "present": ["excessive_migrations"], "dont_care": ["many_small_calls", "scheduling_delay"]},
+  {"name": "odd_worker", "summary": "calc-6 also writes 200 small log lines (write(), 64 bytes each) after its CPU work, every round; the other calc threads only compute", "present": ["thread_differences"], "dont_care": ["many_small_calls", "barrier_straggler", "bottleneck_thread"]}
+]}
+,
+{"program": "filestore", "description": "a record store: a writer appends a 4 KB record every 5 ms and syncs every 2 s, a reader reads 64 KB every 100 ms, and a stats thread checks the file once a second", "faults": [
+  {"name": "none", "summary": "no fault: the program's healthy baseline", "present": [], "dont_care": []},
+  {"name": "disk_wait", "summary": "the writer syncs every record: 1000 records per second, each written and then fdatasync()ed (~0.6 ms on the disk each), plus an 8 MB checkpoint synced once a second (several ms); the writer is blocked on the disk 35-50% of the time", "present": ["waiting_on_disk", "slow_syscalls"], "dont_care": ["long_blocked_waits", "bottleneck_thread"]},
+  {"name": "small_calls", "summary": "every 100 ms the reader reads 5000 bytes one byte per read() call (~50,000 read calls per second) instead of one 64 KB read", "present": ["many_small_calls"], "dont_care": ["cpu_hog"]},
+  {"name": "polling", "summary": "the stats thread calls poll() with a zero timeout on a pipe that never has data, then sleeps 200 us, over and over (~4000 polls per second, all returning nothing)", "present": ["idle_polling"], "dont_care": ["many_small_calls"]},
+  {"name": "retry_loop", "summary": "the stats thread tries to open data/incoming/batch.ready every 1 ms; the file never exists, so every open() fails with ENOENT", "present": ["failing_retry_loop"], "dont_care": ["idle_polling", "many_small_calls"]},
+  {"name": "file_churn", "summary": "the writer writes each 4 KB record to a new file (create, write, close, rename) and deletes the file from 100 records earlier: ~200 files created and deleted per second", "present": ["file_churn"], "dont_care": ["many_small_calls"]},
+  {"name": "unexpected_scan", "summary": "every 2 s the stats thread walks /usr/share/doc, opening and reading the start of up to 300 files that have nothing to do with the store", "present": ["unexpected_activity"], "dont_care": ["many_small_calls", "file_churn"]}
+]}
+,
+{"program": "pipeline", "description": "reader -> parser -> 4 sinks joined by bounded queues; 2000 items per second", "faults": [
+  {"name": "none", "summary": "no fault: the program's healthy baseline", "present": [], "dont_care": []},
+  {"name": "slow_stage", "summary": "the parser spends 1.5 ms per item instead of 0.2 ms, below the reader's 2000 items per second: its input queue stays full, the reader blocks on it and the sinks starve", "present": ["slowest_stage", "bottleneck_thread"], "dont_care": ["producer_consumer_mismatch", "long_blocked_waits", "idle_workers"]},
+  {"name": "bursty", "summary": "the reader produces in bursts, 500 items as fast as it can, then nothing for 400 ms: the queues fill up during a burst and drain empty between bursts", "present": ["producer_consumer_mismatch"], "dont_care": ["slowest_stage", "idle_workers", "long_blocked_waits"]},
+  {"name": "herd", "summary": "16 sink threads (instead of 4) share one queue, and the parser wakes all of them (pthread_cond_broadcast) for every item: each item wakes 16 threads and only one gets it", "present": ["thundering_herd"], "dont_care": ["scheduling_delay", "lock_contention", "many_small_calls"]},
+  {"name": "idle_workers", "summary": "the parser hands every item to sink-0 instead of round-robin: sink-0 is busy ~80% of the time and sink-1..3 never get any work", "present": ["idle_workers", "load_imbalance"], "dont_care": ["bottleneck_thread", "slowest_stage", "thread_differences", "idle_thread"]},
+  {"name": "idle_thread", "summary": "an extra compressor thread is started at launch and waits forever for work that never comes; the pipeline itself is healthy", "present": ["idle_thread"], "dont_care": []}
+]}
+,
+{"program": "kvstore", "description": "4 client threads each send a request every 5 ms over loopback TCP to a key-value server process (kvd) and wait for the reply", "faults": [
+  {"name": "none", "summary": "no fault: the program's healthy baseline", "present": [], "dont_care": []},
+  {"name": "slow_backend", "summary": "the server (process kvd) spends 3 ms per request instead of 0.1 ms, all on one CPU: the server is saturated and the clients spend most of their time blocked waiting for its replies", "present": ["waiting_on_process", "bottleneck_thread"], "dont_care": ["tail_latency", "cpu_hog", "long_blocked_waits"]},
+  {"name": "tail_latency", "summary": "2% of requests, chosen at random, take 25 ms on the server (a slow path that waits) instead of 0.1 ms; the other 98% are as fast as in the healthy run", "present": ["tail_latency"], "dont_care": ["waiting_on_process", "jitter", "one_off_delay"]},
+  {"name": "network_wait", "summary": "once a second each client tries to reach a replica at 10.255.255.1:7070, which never answers, and waits 300 ms for the connection before giving up: the clients are blocked on the network ~30% of the time", "present": ["waiting_on_network", "long_blocked_waits"], "dont_care": ["failing_retry_loop", "tail_latency"]}
+]}
+,
+{"program": "cachesvc", "description": "an in-memory cache: a 256 MB arena filled at start, a loader that refreshes part of it every 200 ms, and two server threads doing lookups every 1 ms", "faults": [
+  {"name": "none", "summary": "no fault: the program's healthy baseline", "present": [], "dont_care": []},
+  {"name": "memory_pressure", "summary": "every 200 ms the loader discards the whole 256 MB arena (madvise MADV_DONTNEED) and touches every page again, four times over: ~260,000 page faults per cycle, keeping the loader busy about a quarter of the time, almost all of it in the kernel handling them", "present": ["memory_pressure"], "dont_care": ["cpu_hog"]},
+  {"name": "allocation_churn", "summary": "for every lookup batch the servers allocate a 256 KB buffer, fill it and free it; each allocation is an mmap() and each free an munmap() (~1000 of each per second per server)", "present": ["allocation_churn"], "dont_care": ["memory_pressure", "many_small_calls"]}
+]}
+,
+{"program": "jobrunner", "description": "a dispatcher queues a 2 ms CPU job every 10 ms for a pool of 4 job threads", "faults": [
+  {"name": "none", "summary": "no fault: the program's healthy baseline", "present": [], "dont_care": []},
+  {"name": "slow_startup", "summary": "before running any job, start-up spends 1.5 s of CPU on initialisation and then waits 1.5 s: the first job runs ~3 s after the start (the healthy start-up takes ~20 ms)", "present": ["slow_startup"], "dont_care": ["long_blocked_waits"]},
+  {"name": "slow_shutdown", "summary": "at the end of the run each job thread, one after another, holds a shared lock for 1.5 s while it flushes its state: the process takes ~6 s to exit after its last job", "present": ["slow_shutdown"], "dont_care": ["long_blocked_waits", "lock_holder_blocking", "convoy"]},
+  {"name": "crash", "summary": "every 5 s the dispatcher forks a helper process (job-helper) for a batch; the third helper dies of a segmentation fault (SIGSEGV) instead of exiting normally; the dispatcher carries on", "present": ["crash"], "dont_care": []},
+  {"name": "fork_storm", "summary": "every job runs a short-lived process (fork + exec of /usr/bin/true) instead of running in the pool thread: ~100 processes started per second", "present": ["fork_exec_storm"], "dont_care": ["many_small_calls"]},
+  {"name": "thread_churn", "summary": "every job runs on a brand-new thread, created and joined by the dispatcher, instead of the pool: ~100 threads created per second", "present": ["thread_churn"], "dont_care": []},
+  {"name": "never_exits", "summary": "at 40% of the run all jobs are done and the dispatcher shuts the pool down, but job-2 is blocked forever reading a pipe nobody writes to, so the process never exits; it sits idle until the end of the run", "present": ["never_exits"], "dont_care": ["hang", "long_blocked_waits", "idle_thread"]}
+]}
+,
+{"program": "reporter", "description": "a render thread produces a report every 50 ms (8 ms of CPU work) on one CPU", "faults": [
+  {"name": "none", "summary": "no fault: the program's healthy baseline", "present": [], "dont_care": []},
+  {"name": "neighbour", "summary": "from 30% to 80% of the run a separate process, indexd, runs three CPU-bound threads on the render thread's CPU; render only gets a quarter of its CPU and each report takes ~4x longer", "present": ["noisy_neighbour", "scheduling_delay"], "dont_care": ["cpu_hog", "oversubscription", "sudden_change", "jitter", "tail_latency"]},
+  {"name": "irq_storm", "summary": "from 30% to 70% of the run an archive thread on render's CPU re-reads stored reports with direct 4 KB reads, 64 in flight; their completion interrupts land on render's CPU, taking about a fifth of it, and each report takes longer", "present": ["interrupt_storm"], "dont_care": ["sudden_change", "jitter", "tail_latency", "scheduling_delay", "waiting_on_disk", "many_small_calls", "slow_syscalls", "unexpected_activity", "thread_differences"]}
+]}
+]

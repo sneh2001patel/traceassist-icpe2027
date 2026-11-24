@@ -1,0 +1,39 @@
+{
+ "system": "codex",
+ "build": "583a6ff11f5adb23",
+ "run": 1,
+ "id": "Q50a__crunch-e648",
+ "question_id": "Q50a",
+ "run_id": "crunch-e648",
+ "trace": "/home/snehpatel/research/TraceCompass AI Agent/symptom_bench/runs/crunch-e648/trace/kernel",
+ "prompt": "Do crunch's threads move between CPUs very often (hundreds of times per second)? If so, which threads, how often, and what change would stop it?\n\nBegin your answer with exactly one line: \"Verdict: yes\", \"Verdict: no\", or \"Verdict: cannot tell from this trace\". Then answer the question.",
+ "started": "2026-11-23T08:29:42-0500",
+ "model": "gpt-6-luna",
+ "reasoning_effort": "medium",
+ "question_timeout_s": 1800,
+ "elapsed_s": 194.31,
+ "exit_code": 0,
+ "session_id": "01a20899-1f76-7930-b052-71c039faafde",
+ "turns": 1,
+ "usage": {
+  "input_tokens": 225621,
+  "cached_tokens": 197897,
+  "output_tokens": 9793,
+  "reasoning_tokens": 5595
+ },
+ "n_commands": 12,
+ "item_types": {
+  "agent_message": 3,
+  "command_execution": 12
+ },
+ "flagged_commands": [],
+ "errors": [],
+ "warnings": [],
+ "answer": "Verdict: yes\n\nAll eight crunch worker threads migrate about **100 times per second each**\u2014roughly **800 migrations per second combined**. Each had 2,991 `sched_migrate_task` events over about 29.9 seconds, and scheduler switch events confirm the CPU changes.\n\n| Thread | TID | Migrations |\n|---|---:|---:|\n| calc-0 | 637548 | ~100/s |\n| calc-1 | 637549 | ~100/s |\n| calc-2 | 637550 | ~100/s |\n| calc-3 | 637551 | ~100/s |\n| calc-4 | 637552 | ~100/s |\n| calc-5 | 637553 | ~100/s |\n| calc-6 | 637554 | ~100/s |\n| calc-7 | 637555 | ~100/s |\n\nThe trace also shows each worker repeatedly calling `sched_setaffinity` on itself (`pid=0`, `len=128`), about 2,990 times over the same interval; the calls return 0. Their median entry-to-exit duration is about 14 \u03bcs. The migrations track these calls. The parent thread, `crunch` TID 637546, moved only 22 times in the trace.\n\nTo stop the frequent moves, stop rotating each worker\u2019s affinity about every 10 ms. Set each worker\u2019s intended affinity once; pin each to a fixed CPU if you need to prevent CPU changes. The trace records the affinity mask pointer, but not the mask contents, so it does not show the exact mask values or source code responsible.",
+ "status": "ok",
+ "verdict": {
+  "verdict": "present",
+  "position": "first",
+  "line": "Verdict: yes"
+ }
+}

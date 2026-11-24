@@ -1,0 +1,640 @@
+{
+ "system": "traceassist",
+ "build": "a4162fd526b12d22",
+ "knowledge": "1d7092adf385d1ab",
+ "run": 2,
+ "id": "Q26b__batch_server-9c98",
+ "question_id": "Q26b",
+ "run_id": "batch_server-9c98",
+ "trace": "/home/snehpatel/research/TraceCompass AI Agent/symptom_bench/runs/batch_server-9c98/trace/kernel",
+ "prompt": "Is some thread in batch_server blocked a lot? Which one, and what is it waiting for?\n\nBegin your answer with exactly one line: \"Verdict: yes\", \"Verdict: no\", or \"Verdict: cannot tell from this trace\". Then answer the question.",
+ "started": "2026-11-22T19:22:05-0500",
+ "status": "ok",
+ "answer": "Verdict: yes\n\n## Finding\n\nAcross the whole trace (offsets 0\u201330,302.5 ms), **flusher (TID 627455, PID 627449)** was blocked for **99.3% of its alive time**. Its final wait began at offset **12,093.927 ms** and remained unended for **18,202.760 ms** through the trace\u2019s end.\n\nIt was waiting in `futex` (`FUTEX_WAIT_BITSET`) on address `0x562bfb29fe20`, with no timeout. That is a synchronization wait of the kind used for a condition variable, barrier, or semaphore. Its earlier waits were much shorter: median **40.656 ms**, longest **100.449 ms**. A futex wait indicates synchronization waiting, but does not by itself identify the exact application-level purpose [1].\n\nThis was not limited to flusher: five other `batch_server` threads were also left blocked in unended waits, and the process stopped making progress at about offset **12,093.927 ms**. The trace does not establish exactly what condition flusher was waiting for.\n\n## All sources used:\n\n1) Blocking in futex - https://man7.org/linux/man-pages/man2/futex.2.html",
+ "response": {
+  "question": "Is some thread in batch_server blocked a lot? Which one, and what is it waiting for?\n\nBegin your answer with exactly one line: \"Verdict: yes\", \"Verdict: no\", or \"Verdict: cannot tell from this trace\". Then answer the question.",
+  "trace_path": "/home/snehpatel/research/TraceCompass AI Agent/symptom_bench/runs/batch_server-9c98/trace/kernel",
+  "plan": {
+   "scope": "thread",
+   "tid": 627455,
+   "intent": "explain_time",
+   "describe_words": null,
+   "deviation_words": null,
+   "find_late_cycles": false,
+   "resolved_from_question": {
+    "tid": 627455,
+    "name": "flusher",
+    "matched": "thread search: TID 627455 (flusher): longest blocked wait 18202.760 ms, 1.0x the median of the other suspects (18202.744 ms)",
+    "source": "thread_search"
+   },
+   "details_from": "thread_finder symptom long_blocked_waits: [syscalls]",
+   "thread_finder": {
+    "scope": "thread",
+    "symptom": "long_blocked_waits",
+    "target": {
+     "tid": null,
+     "pid": null,
+     "reason": "The question asks which individual thread within batch_server is heavily blocked; no thread is named."
+    },
+    "suspects": [
+     {
+      "tid": 627450,
+      "pid": 627449,
+      "reason": "watchdog is blocked 100.0% of its 30205 ms lifetime, although it woke only once and did virtually no running."
+     },
+     {
+      "tid": 627455,
+      "pid": 627449,
+      "reason": "flusher is blocked 99.3% of its 30205 ms lifetime and has 291 wakeups, making it the strongest active-thread candidate."
+     },
+     {
+      "tid": 627449,
+      "pid": 627449,
+      "reason": "The batch_server main thread is blocked 98.0% of its 30281 ms lifetime and has 581 wakeups."
+     },
+     {
+      "tid": 627451,
+      "pid": 627449,
+      "reason": "worker-0 does work but remains blocked 84.5% of its lifetime, with 291 wakeups."
+     },
+     {
+      "tid": 627452,
+      "pid": 627449,
+      "reason": "worker-1 does work but remains blocked 83.9% of its lifetime, with 291 wakeups."
+     }
+    ],
+    "question_numbers": {
+     "magnitude_ms": null,
+     "period_ms": null,
+     "count": null,
+     "range_start_ms": null,
+     "range_end_ms": null
+    },
+    "follow_up": false,
+    "reasoning": "The named program is batch_server, but the requested answer is a single thread and what it waits for, so this is thread scope with a long-blocked-waits symptom. Several of its threads have high blocked percentages, so they must be investigated as suspects rather than selecting one from aggregate percentages alone.",
+    "target_clear": false,
+    "used": "search pick",
+    "picked": "TID 627455 (flusher)",
+    "search": {
+     "symptom": "long_blocked_waits",
+     "pick": "TID 627455",
+     "pick_name": "flusher",
+     "pick_reason": "TID 627455 (flusher): longest blocked wait 18202.760 ms, 1.0x the median of the other suspects (18202.744 ms)",
+     "pick_share_percent": 25.0,
+     "confidence": "low",
+     "exit": "4 analyses not run: they would have gone over the budget",
+     "suspects": [
+      {
+       "tid": 627450,
+       "pid": 627449,
+       "label": "TID 627450",
+       "name": "watchdog",
+       "finder_reason": "watchdog is blocked 100.0% of its 30205 ms lifetime, although it woke only once and did virtually no running.",
+       "level_reached": 2,
+       "verdict": "no",
+       "verdict_reason": "Its 30,199.8 ms longest blocked wait was in clock_nanosleep, which is a deliberate sleep rather than evidence of being stuck.",
+       "verdict_level": 3,
+       "score": 0.0,
+       "share_percent": 0.0,
+       "evidence": {
+        "level_1": {
+         "tid": 627450,
+         "available": true,
+         "lifetime_ms": 30205.018126,
+         "running_ms": 0.112518,
+         "user_mode_ms": 0.03687,
+         "kernel_mode_ms": 0.075648,
+         "waiting_for_cpu_ms": 0.252729,
+         "blocked_ms": 30204.652879,
+         "longest_blocked_ms": 30199.787813,
+         "longest_blocked_start_ns": 1795223109319476567,
+         "longest_blocked_end_ns": 1795223139519264380,
+         "longest_blocked_start_offset_ms": 91.922928,
+         "longest_wait_for_cpu_ms": 0.232549,
+         "longest_wait_for_cpu_start_ns": 1795223109319221899,
+         "longest_wait_for_cpu_end_ns": 1795223109319454448,
+         "longest_wait_for_cpu_start_offset_ms": 91.66826,
+         "system_calls": 13,
+         "in_system_calls_ms": 30204.981256,
+         "longest_system_call_ms": 30199.814283,
+         "longest_system_call_start_ns": 1795223109319472777,
+         "longest_system_call_end_ns": 1795223139519287060,
+         "longest_system_call_start_offset_ms": 91.919138,
+         "longest_system_call_name": "clock_nanosleep"
+        },
+        "level_2": {
+         "claim": "1 system calls here (median 30199.814 ms, p99 30199.814 ms); the longest: clock_nanosleep 30199.814 ms at 91.919 ms.",
+         "call_count": 1,
+         "median_ms": 30199.814283,
+         "longest": [
+          {
+           "system_call": "clock_nanosleep",
+           "duration_ms": 30199.814283,
+           "start_offset_ms": 91.919138
+          }
+         ],
+         "blocked_in": "clock_nanosleep"
+        }
+       }
+      },
+      {
+       "tid": 627455,
+       "pid": 627449,
+       "label": "TID 627455",
+       "name": "flusher",
+       "finder_reason": "flusher is blocked 99.3% of its 30205 ms lifetime and has 291 wakeups, making it the strongest active-thread candidate.",
+       "level_reached": 2,
+       "verdict": "weak",
+       "verdict_reason": "Its longest wait was 18,202.8 ms in futex, but that is about the peer median of 18,202.7 ms and the evidence does not explain what the futex wait was for.",
+       "verdict_level": 3,
+       "score": 0.044,
+       "share_percent": 25.0,
+       "evidence": {
+        "level_1": {
+         "tid": 627455,
+         "available": true,
+         "lifetime_ms": 30204.655488,
+         "running_ms": 72.425945,
+         "user_mode_ms": 70.651538,
+         "kernel_mode_ms": 1.774407,
+         "waiting_for_cpu_ms": 134.748645,
+         "blocked_ms": 29997.480898,
+         "longest_blocked_ms": 18202.759732,
+         "longest_blocked_start_ns": 1795223121321480293,
+         "longest_blocked_end_ns": 1795223139524240025,
+         "longest_blocked_start_offset_ms": 12093.926654,
+         "longest_wait_for_cpu_ms": 2.851839,
+         "longest_wait_for_cpu_start_ns": 1795223121198664284,
+         "longest_wait_for_cpu_end_ns": 1795223121201516123,
+         "longest_wait_for_cpu_start_offset_ms": 11971.110645,
+         "system_calls": 300,
+         "in_system_calls_ms": 30133.654343,
+         "longest_system_call_ms": 18202.762022,
+         "longest_system_call_start_ns": 1795223121321478003,
+         "longest_system_call_end_ns": 1795223139524240025,
+         "longest_system_call_start_offset_ms": 12093.924364,
+         "longest_system_call_name": "futex"
+        },
+        "level_2": {
+         "claim": "1 system calls here (median 18202.762 ms, p99 18202.762 ms); the longest: futex 18202.762 ms at 12,093.924 ms.",
+         "call_count": 1,
+         "median_ms": 18202.762022,
+         "longest": [
+          {
+           "system_call": "futex",
+           "duration_ms": 18202.762022,
+           "start_offset_ms": 12093.924364
+          }
+         ],
+         "blocked_in": "futex"
+        }
+       }
+      },
+      {
+       "tid": 627449,
+       "pid": 627449,
+       "label": "TID 627449",
+       "name": "batch_server",
+       "finder_reason": "The batch_server main thread is blocked 98.0% of its 30281 ms lifetime and has 581 wakeups.",
+       "level_reached": 2,
+       "verdict": "weak",
+       "verdict_reason": "batch_server's longest wait was 18,202.7 ms in futex, but that matches the peer value and the evidence does not establish what it was waiting for.",
+       "verdict_level": 3,
+       "score": 0.044,
+       "share_percent": 25.0,
+       "evidence": {
+        "level_1": {
+         "tid": 627449,
+         "available": true,
+         "lifetime_ms": 30281.245611,
+         "running_ms": 87.056738,
+         "user_mode_ms": 78.523695,
+         "kernel_mode_ms": 8.533043,
+         "waiting_for_cpu_ms": 5.466484,
+         "blocked_ms": 29676.773993,
+         "longest_blocked_ms": 18202.743832,
+         "longest_blocked_start_ns": 1795223121321496193,
+         "longest_blocked_end_ns": 1795223139524240025,
+         "longest_blocked_start_offset_ms": 12093.942554,
+         "longest_wait_for_cpu_ms": 0.219249,
+         "longest_wait_for_cpu_start_ns": 1795223109319235579,
+         "longest_wait_for_cpu_end_ns": 1795223109319454828,
+         "longest_wait_for_cpu_start_offset_ms": 91.68194,
+         "system_calls": 2430,
+         "in_system_calls_ms": 30202.485607,
+         "longest_system_call_ms": 18202.745602,
+         "longest_system_call_start_ns": 1795223121321494423,
+         "longest_system_call_end_ns": 1795223139524240025,
+         "longest_system_call_start_offset_ms": 12093.940784,
+         "longest_system_call_name": "futex"
+        },
+        "level_2": {
+         "claim": "1 system calls here (median 18202.746 ms, p99 18202.746 ms); the longest: futex 18202.746 ms at 12,093.941 ms.",
+         "call_count": 1,
+         "median_ms": 18202.745602,
+         "longest": [
+          {
+           "system_call": "futex",
+           "duration_ms": 18202.745602,
+           "start_offset_ms": 12093.940784
+          }
+         ],
+         "blocked_in": "futex"
+        }
+       }
+      },
+      {
+       "tid": 627451,
+       "pid": 627449,
+       "label": "TID 627451",
+       "name": "worker-0",
+       "finder_reason": "worker-0 does work but remains blocked 84.5% of its lifetime, with 291 wakeups.",
+       "level_reached": 2,
+       "verdict": "weak",
+       "verdict_reason": "Its longest wait was 18,189.7 ms in futex, essentially the peer level (0.999\u00d7), and the evidence does not explain what it was waiting for.",
+       "verdict_level": 3,
+       "score": 0.044,
+       "share_percent": 25.0,
+       "evidence": {
+        "level_1": {
+         "tid": 627451,
+         "available": true,
+         "lifetime_ms": 30204.752298,
+         "running_ms": 1488.522397,
+         "user_mode_ms": 1483.379968,
+         "kernel_mode_ms": 5.142429,
+         "waiting_for_cpu_ms": 3184.373554,
+         "blocked_ms": 25531.783917,
+         "longest_blocked_ms": 18189.651078,
+         "longest_blocked_start_ns": 1795223121334588947,
+         "longest_blocked_end_ns": 1795223139524240025,
+         "longest_blocked_start_offset_ms": 12107.035308,
+         "longest_wait_for_cpu_ms": 15.342497,
+         "longest_wait_for_cpu_start_ns": 1795223116851591832,
+         "longest_wait_for_cpu_end_ns": 1795223116866934329,
+         "longest_wait_for_cpu_start_offset_ms": 7624.038193,
+         "system_calls": 616,
+         "in_system_calls_ms": 26000.740262,
+         "longest_system_call_ms": 18189.652358,
+         "longest_system_call_start_ns": 1795223121334587667,
+         "longest_system_call_end_ns": 1795223139524240025,
+         "longest_system_call_start_offset_ms": 12107.034028,
+         "longest_system_call_name": "futex"
+        },
+        "level_2": {
+         "claim": "1 system calls here (median 18189.652 ms, p99 18189.652 ms); the longest: futex 18189.652 ms at 12,107.034 ms.",
+         "call_count": 1,
+         "median_ms": 18189.652358,
+         "longest": [
+          {
+           "system_call": "futex",
+           "duration_ms": 18189.652358,
+           "start_offset_ms": 12107.034028
+          }
+         ],
+         "blocked_in": "futex"
+        }
+       }
+      },
+      {
+       "tid": 627452,
+       "pid": 627449,
+       "label": "TID 627452",
+       "name": "worker-1",
+       "finder_reason": "worker-1 does work but remains blocked 83.9% of its lifetime, with 291 wakeups.",
+       "level_reached": 2,
+       "verdict": "weak",
+       "verdict_reason": "Its longest wait was 18,192.0 ms in futex, essentially the peer level (0.999\u00d7), and the evidence does not explain what it was waiting for.",
+       "verdict_level": 3,
+       "score": 0.044,
+       "share_percent": 25.0,
+       "evidence": {
+        "level_1": {
+         "tid": 627452,
+         "available": true,
+         "lifetime_ms": 30204.736018,
+         "running_ms": 1477.177177,
+         "user_mode_ms": 1472.509068,
+         "kernel_mode_ms": 4.668109,
+         "waiting_for_cpu_ms": 3390.131016,
+         "blocked_ms": 25337.268817,
+         "longest_blocked_ms": 18192.019571,
+         "longest_blocked_start_ns": 1795223121332220454,
+         "longest_blocked_end_ns": 1795223139524240025,
+         "longest_blocked_start_offset_ms": 12104.666815,
+         "longest_wait_for_cpu_ms": 15.058249,
+         "longest_wait_for_cpu_start_ns": 1795223119478522836,
+         "longest_wait_for_cpu_end_ns": 1795223119493581085,
+         "longest_wait_for_cpu_start_offset_ms": 10250.969197,
+         "system_calls": 643,
+         "in_system_calls_ms": 26250.977479,
+         "longest_system_call_ms": 18192.020961,
+         "longest_system_call_start_ns": 1795223121332219064,
+         "longest_system_call_end_ns": 1795223139524240025,
+         "longest_system_call_start_offset_ms": 12104.665425,
+         "longest_system_call_name": "futex"
+        },
+        "level_2": {
+         "claim": "1 system calls here (median 18192.021 ms, p99 18192.021 ms); the longest: futex 18192.021 ms at 12,104.665 ms.",
+         "call_count": 1,
+         "median_ms": 18192.020961,
+         "longest": [
+          {
+           "system_call": "futex",
+           "duration_ms": 18192.020961,
+           "start_offset_ms": 12104.665425
+          }
+         ],
+         "blocked_in": "futex"
+        }
+       }
+      }
+     ],
+     "judge": [
+      {
+       "level": 2,
+       "status": "done",
+       "cached": false,
+       "verdicts": [
+        {
+         "suspect": "TID 627450",
+         "verdict": "no",
+         "reason": "Its 30,199.8 ms blocked wait was in clock_nanosleep, which indicates a deliberate sleep rather than being stuck."
+        },
+        {
+         "suspect": "TID 627455",
+         "verdict": "match",
+         "reason": "It was blocked for 99.3% of its lifetime, with a longest futex wait of 18,202.8 ms."
+        },
+        {
+         "suspect": "TID 627449",
+         "verdict": "match",
+         "reason": "The batch_server main thread was blocked for 98.0% of its lifetime, with a longest futex wait of 18,202.7 ms."
+        },
+        {
+         "suspect": "TID 627451",
+         "verdict": "match",
+         "reason": "It was blocked for 84.5% of its lifetime, with a longest futex wait of 18,189.7 ms."
+        },
+        {
+         "suspect": "TID 627452",
+         "verdict": "match",
+         "reason": "It was blocked for 83.9% of its lifetime, with a longest futex wait of 18,192.0 ms."
+        }
+       ],
+       "reasoning": "Several batch_server threads show long futex waits of about 18.2 seconds; the watchdog's similarly long wait was instead in clock_nanosleep.",
+       "ms": 8266.728
+      },
+      {
+       "level": 3,
+       "status": "done",
+       "cached": false,
+       "verdicts": [
+        {
+         "suspect": "TID 627450",
+         "verdict": "no",
+         "reason": "Its 30,199.8 ms longest blocked wait was in clock_nanosleep, which is a deliberate sleep rather than evidence of being stuck."
+        },
+        {
+         "suspect": "TID 627455",
+         "verdict": "weak",
+         "reason": "Its longest wait was 18,202.8 ms in futex, but that is about the peer median of 18,202.7 ms and the evidence does not explain what the futex wait was for."
+        },
+        {
+         "suspect": "TID 627449",
+         "verdict": "weak",
+         "reason": "batch_server's longest wait was 18,202.7 ms in futex, but that matches the peer value and the evidence does not establish what it was waiting for."
+        },
+        {
+         "suspect": "TID 627451",
+         "verdict": "weak",
+         "reason": "Its longest wait was 18,189.7 ms in futex, essentially the peer level (0.999\u00d7), and the evidence does not explain what it was waiting for."
+        },
+        {
+         "suspect": "TID 627452",
+         "verdict": "weak",
+         "reason": "Its longest wait was 18,192.0 ms in futex, essentially the peer level (0.999\u00d7), and the evidence does not explain what it was waiting for."
+        }
+       ],
+       "reasoning": "The watchdog's long wait is an intentional clock_nanosleep. The other threads have roughly 18.2-second futex waits, but their measurements are alike and do not establish whether those waits indicate a problem or ordinary synchronization.",
+       "ms": 8828.922
+      }
+     ],
+     "budget": {
+      "event_count": 1506364,
+      "cap_events": 1129773,
+      "spent_events": 631545,
+      "spent_percent_of_cap": 55.9,
+      "wall_ms": 17799.523,
+      "analyses": [
+       {
+        "suspect": "TID 627450",
+        "level": 1,
+        "analysis": "state profile (state history)",
+        "estimated_cost_events": 75076,
+        "status": "done",
+        "ms": 74.302
+       },
+       {
+        "suspect": "TID 627455",
+        "level": 1,
+        "analysis": "state profile (state history)",
+        "estimated_cost_events": 75075,
+        "status": "done",
+        "ms": 68.611
+       },
+       {
+        "suspect": "TID 627449",
+        "level": 1,
+        "analysis": "state profile (state history)",
+        "estimated_cost_events": 75265,
+        "status": "done",
+        "ms": 65.122
+       },
+       {
+        "suspect": "TID 627451",
+        "level": 1,
+        "analysis": "state profile (state history)",
+        "estimated_cost_events": 75075,
+        "status": "done",
+        "ms": 74.276
+       },
+       {
+        "suspect": "TID 627452",
+        "level": 1,
+        "analysis": "state profile (state history)",
+        "estimated_cost_events": 75075,
+        "status": "done",
+        "ms": 63.403
+       },
+       {
+        "suspect": "TID 627450",
+        "level": 2,
+        "analysis": "syscalls.longest (state system)",
+        "estimated_cost_events": 75063,
+        "status": "done",
+        "ms": 75.633
+       },
+       {
+        "suspect": "TID 627455",
+        "level": 2,
+        "analysis": "syscalls.longest (state system)",
+        "estimated_cost_events": 45244,
+        "status": "done",
+        "ms": 63.592
+       },
+       {
+        "suspect": "TID 627449",
+        "level": 2,
+        "analysis": "syscalls.longest (state system)",
+        "estimated_cost_events": 45244,
+        "status": "done",
+        "ms": 75.279
+       },
+       {
+        "suspect": "TID 627452",
+        "level": 2,
+        "analysis": "syscalls.longest (state system)",
+        "estimated_cost_events": 45217,
+        "status": "done",
+        "ms": 66.346
+       },
+       {
+        "suspect": "TID 627451",
+        "level": 2,
+        "analysis": "syscalls.longest (state system)",
+        "estimated_cost_events": 45211,
+        "status": "done",
+        "ms": 76.886
+       },
+       {
+        "suspect": "TID 627455",
+        "level": 3,
+        "analysis": "state split and per-state explainers of its longest blocked wait",
+        "estimated_cost_events": 904875,
+        "status": "not run: over the budget"
+       },
+       {
+        "suspect": "TID 627449",
+        "level": 3,
+        "analysis": "state split and per-state explainers of its longest blocked wait",
+        "estimated_cost_events": 904874,
+        "status": "not run: over the budget"
+       },
+       {
+        "suspect": "TID 627452",
+        "level": 3,
+        "analysis": "state split and per-state explainers of its longest blocked wait",
+        "estimated_cost_events": 904341,
+        "status": "not run: over the budget"
+       },
+       {
+        "suspect": "TID 627451",
+        "level": 3,
+        "analysis": "state split and per-state explainers of its longest blocked wait",
+        "estimated_cost_events": 904224,
+        "status": "not run: over the budget"
+       }
+      ]
+     }
+    }
+   }
+  },
+  "target": {
+   "tid": 627455,
+   "name": "flusher",
+   "trace_path": "/home/snehpatel/research/TraceCompass AI Agent/symptom_bench/runs/batch_server-9c98/trace/kernel"
+  },
+  "view_plan": {
+   "source": "view_picker",
+   "views": [
+    {
+     "id": "org.eclipse.tracecompass.analysis.os.linux.views.controlflow",
+     "name": "Control Flow",
+     "key": "control_flow",
+     "look_at": "Inspect TID 627455 (flusher)'s row across the long wait: it should show the thread blocked in a futex until the trace ends. The whole-trace evidence says it was blocked for 99.0% of its time.",
+     "tsp_output": "org.eclipse.tracecompass.internal.analysis.os.linux.core.threadstatus.ThreadStatusDataProvider"
+    },
+    {
+     "id": "org.eclipse.linuxtools.tmf.analysis.graph.ui.criticalpath.view.criticalpathview",
+     "name": "Critical Path",
+     "key": "critical_path",
+     "look_at": "Follow TID 627455 (flusher) through this futex wait. The evidence attributes its usual waits to TID 627449 (batch_server), but reports no participant on this longest wait's computed path, so the view may not reveal the actual wake cause.",
+     "tsp_output": null
+    }
+   ],
+   "selection": {
+    "start_ns": 1795223121321480293,
+    "end_ns": 1795223139524240024,
+    "start_offset_ms": 12093.926654,
+    "end_offset_ms": 30296.686385
+   },
+   "zoom": {
+    "start_ns": 1795223119501204320,
+    "end_ns": 1795223139530054902,
+    "rule": "Control Flow: pad 0.10 x the moment each side, at least 0.05 ms"
+   },
+   "moment": "critical_path_wait",
+   "follow_tid": 627455,
+   "select_tid": 627455,
+   "plot_tids": [],
+   "plot_series": [],
+   "reason": "the wait whose critical path was computed (the longest wait)",
+   "picker_reasoning": "The question asks which thread is blocked and what it is waiting for; the longest futex wait best exposes the extended blocked state. Control Flow shows the thread's state, while Critical Path is the relevant view for investigating its wait cause, with the known attribution limitation noted.",
+   "views_not_offered": [
+    "kernel_memory (no kmem_mm_page_* events in the trace)"
+   ],
+   "rule_based": {
+    "views": [
+     "System Call Latency vs Time",
+     "System Call Latencies",
+     "Control Flow"
+    ],
+    "reason": "the thread's longest system call (futex)"
+   },
+   "clock_range": "20:05:21.321 480 293 \u2013 20:05:39.524 240 024",
+   "summary": "Control Flow + Critical Path, 12,093.927\u201330,296.686 ms into the trace (20:05:21.321 480 293 \u2013 20:05:39.524 240 024 on the views' time axis) (following TID 627455): the wait whose critical path was computed (the longest wait).\n- **Control Flow:** Inspect TID 627455 (flusher)'s row across the long wait: it should show the thread blocked in a futex until the trace ends. The whole-trace evidence says it was blocked for 99.0% of its time.\n- **Critical Path:** Follow TID 627455 (flusher) through this futex wait. The evidence attributes its usual waits to TID 627449 (batch_server), but reports no participant on this longest wait's computed path, so the view may not reveal the actual wake cause."
+  },
+  "why_section": "**Why this thread:** TID 627455 (flusher), 25%. Its longest wait was 18,202.8 ms in futex, but that is about the peer median of 18,202.7 ms and the evidence does not explain what the futex wait was for. Also look at TID 627449 (batch_server) (25%): batch_server's longest wait was 18,202.7 ms in futex, but that matches the peer value and the evidence does not establish what it was waiting for; TID 627451 (worker-0) (25%): its longest wait was 18,189.7 ms in futex, essentially the peer level (0.999\u00d7), and the evidence does not explain what it was waiting for; TID 627452 (worker-1) (25%): its longest wait was 18,192.0 ms in futex, essentially the peer level (0.999\u00d7), and the evidence does not explain what it was waiting for. Checked, no sign of it: TID 627450 (watchdog). Confidence: low. (Search: 4 analyses not run: they would have gone over the budget.)",
+  "stage_durations_ms": {
+   "target_resolver": 8.079652,
+   "thread_finder": 5625.711432,
+   "thread_search": 17799.624426,
+   "trace_overview": 0.208351,
+   "unified_explainer": 155.973415,
+   "stuck_waits": 4944.555234,
+   "process_context": 0.20214,
+   "tmll_analysis": 129.005149,
+   "rag_retrieval": 784.756325,
+   "view_picker": 2788.34691,
+   "llm_call": 6372.740584
+  },
+  "trace_source": "own_copy",
+  "findings_count": 16,
+  "response_id": "resp_02a0d9dbc1b4af2d006b03874db14887d1854b9f0213b6bd94",
+  "model": "gpt-6-luna",
+  "usage": {
+   "input_tokens": 24790,
+   "input_tokens_details": {
+    "cache_write_tokens": 20841,
+    "cache_write_tokens_details": {
+     "ttl_12h_tokens": 0,
+     "ttl_30m_tokens": 20841
+    },
+    "cached_tokens": 3946
+   },
+   "output_tokens": 659,
+   "output_tokens_details": {
+    "reasoning_tokens": 388
+   },
+   "total_tokens": 25449
+  }
+ },
+ "elapsed_s": 38.61,
+ "model": "gpt-6-luna",
+ "verdict": {
+  "verdict": "present",
+  "position": "first",
+  "line": "Verdict: yes"
+ }
+}

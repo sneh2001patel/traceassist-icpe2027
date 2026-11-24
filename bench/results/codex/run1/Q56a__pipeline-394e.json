@@ -1,0 +1,39 @@
+{
+ "system": "codex",
+ "build": "583a6ff11f5adb23",
+ "run": 1,
+ "id": "Q56a__pipeline-394e",
+ "question_id": "Q56a",
+ "run_id": "pipeline-394e",
+ "trace": "/home/snehpatel/research/TraceCompass AI Agent/symptom_bench/runs/pipeline-394e/trace/kernel",
+ "prompt": "In pipeline, does each new item wake many waiting threads, with all but one going straight back to sleep? If so, which threads, and what change would fix it?\n\nBegin your answer with exactly one line: \"Verdict: yes\", \"Verdict: no\", or \"Verdict: cannot tell from this trace\". Then answer the question.",
+ "started": "2026-11-23T15:39:55-0500",
+ "model": "gpt-6-luna",
+ "reasoning_effort": "medium",
+ "question_timeout_s": 1800,
+ "elapsed_s": 112.74,
+ "exit_code": 0,
+ "session_id": "01a20a23-0213-7181-9873-ae313f0ca948",
+ "turns": 1,
+ "usage": {
+  "input_tokens": 882232,
+  "cached_tokens": 788608,
+  "output_tokens": 11681,
+  "reasoning_tokens": 9855
+ },
+ "n_commands": 19,
+ "item_types": {
+  "agent_message": 2,
+  "command_execution": 19
+ },
+ "flagged_commands": [],
+ "errors": [],
+ "warnings": [],
+ "answer": "Verdict: yes\n\n`parser` (TID 645046) wakes the sink pool with a futex broadcast. At 01:20:02.705203 on CPU 4, it calls `FUTEX_WAKE_PRIVATE` with a wake limit of 2,147,483,647; the call returns 16 at 01:20:02.705229, taking about **25.6 \u00b5s**. The scheduler records wakeups for all 16 sinks, `sink-0` through `sink-15` (TIDs **645030\u2013645045**), across CPUs 5\u20138. They switch off CPU again in sleeping states within roughly **60 \u00b5s**.\n\nThe pattern repeats: at 01:20:02.705699, the parser makes another broadcast, which returns 14 waiters about **24.3 \u00b5s** later. The kernel trace shows the wakeup herd and resleeping; it does not show which sink claims each item.\n\nFor a shared work queue where one sink handles each item, enqueue the item and notify one waiter (`pthread_cond_signal`, or a futex wake count of 1) instead of broadcasting to every sink.",
+ "status": "ok",
+ "verdict": {
+  "verdict": "present",
+  "position": "first",
+  "line": "Verdict: yes"
+ }
+}

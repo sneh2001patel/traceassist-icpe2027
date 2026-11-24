@@ -1,0 +1,32 @@
+{
+ "system": "llm_only",
+ "build": "60f722b3865e8e20",
+ "run": 1,
+ "id": "Q56a__pipeline-394e",
+ "question_id": "Q56a",
+ "run_id": "pipeline-394e",
+ "trace": "/home/snehpatel/research/TraceCompass AI Agent/symptom_bench/runs/pipeline-394e/trace/kernel",
+ "prompt": "In pipeline, does each new item wake many waiting threads, with all but one going straight back to sleep? If so, which threads, and what change would fix it?\n\nBegin your answer with exactly one line: \"Verdict: yes\", \"Verdict: no\", or \"Verdict: cannot tell from this trace\". Then answer the question.",
+ "started": "2026-11-23T03:31:39-0500",
+ "slice": "C_sampled",
+ "slice_tokens": 199984,
+ "slice_events": 2982,
+ "reasoning_effort": null,
+ "model": "gpt-6-luna",
+ "response_status": "completed",
+ "incomplete_reason": null,
+ "usage": {
+  "input_tokens": 200165,
+  "output_tokens": 2375,
+  "cached_tokens": 200087,
+  "reasoning_tokens": 2070
+ },
+ "elapsed_s": 24.98,
+ "answer": "Verdict: yes\n\nThe trace repeatedly shows a wake-all on futex address `94518829081512`: `futex` with `op = 129` (private `FUTEX_WAKE`) and `val = 2147483647`. The wake returns counts such as 16, 14, and 12. For example, at 20:20:21.600630857, the call on CPU 4 returns 16 at 20:20:21.600648267. The surrounding events show sink threads being woken across CPUs 5\u20138, then issuing futex waits and switching out again.\n\nThe affected worker pool is `sink-0` through `sink-15`, TIDs **645030\u2013645045**. The wake call appears to be made by `parser` (TID **645046**) on CPU 4. This is consistent with a thundering herd: many workers wake for a notification, while most promptly wait again. The trace doesn\u2019t identify individual items or show which worker actually handled one, so it cannot prove that every new item causes exactly one such wake.\n\nTo avoid the herd, notify one eligible worker per item\u2014e.g. change the futex wake count from `INT_MAX` to `1`, or use a condition-variable `signal` rather than `broadcast`. For batches, wake only enough workers to handle the available work; reserve broadcast for events that genuinely require every worker to wake.",
+ "status": "ok",
+ "verdict": {
+  "verdict": "present",
+  "position": "first",
+  "line": "Verdict: yes"
+ }
+}

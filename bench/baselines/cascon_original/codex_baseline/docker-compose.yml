@@ -1,0 +1,37 @@
+# Codex-agent baseline sandbox.
+#
+#   sandbox (internal, no route out) ── agent
+#                                   └── proxy ── egress (internet), allow-list: model API only
+#
+# `codex_baseline.py` starts the proxy and one agent container per trace conversation.
+name: codex_baseline
+
+services:
+  proxy:
+    build: {context: ./docker, dockerfile: proxy.Dockerfile}
+    image: codex-baseline-proxy:latest
+    networks: [sandbox, egress]
+    restart: unless-stopped
+
+  agent:
+    build: {context: ./docker, dockerfile: agent.Dockerfile}
+    image: codex-baseline-agent:latest
+    profiles: ["agent"]          # started only by `docker compose run`
+    networks: [sandbox]
+    depends_on: [proxy]
+    environment:
+      HTTPS_PROXY: http://proxy:8888
+      HTTP_PROXY: http://proxy:8888
+      https_proxy: http://proxy:8888
+      http_proxy: http://proxy:8888
+      NO_PROXY: ""
+    # Same resources for every conversation, so the 30-minute budget means the same thing.
+    cpus: 8
+    mem_limit: 16g
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+
+networks:
+  sandbox:
+    internal: true
+  egress: {}

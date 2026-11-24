@@ -1,0 +1,41 @@
+# Codex-agent baseline sandbox.
+#
+#   sandbox (internal, no route out) ── agent
+#                                   └── proxy ── egress (internet), allow-list: model API only
+#
+# `codex_baseline.py` starts the proxy and one agent container per question (a fresh session each).
+# Adapted from the CASCON experiment. The proxy image is CASCON's (codex-baseline-proxy:latest); the
+# agent image is our own (codex-bench-agent:0.167.0): codex-cli 0.167.0 has gpt-6-luna's metadata, 0.153.4 does not.
+name: codex_baseline
+
+services:
+  proxy:
+    build: {context: ./docker, dockerfile: proxy.Dockerfile}
+    image: codex-baseline-proxy:latest
+    networks: [sandbox, egress]
+    restart: unless-stopped
+
+  agent:
+    build: {context: ./docker, dockerfile: agent.Dockerfile}
+    image: codex-bench-agent:0.167.0
+    profiles: ["agent"]          # started only by `docker compose run`
+    networks: [sandbox]
+    depends_on: [proxy]
+    environment:
+      HTTPS_PROXY: http://proxy:8888
+      HTTP_PROXY: http://proxy:8888
+      https_proxy: http://proxy:8888
+      http_proxy: http://proxy:8888
+      NO_PROXY: ""
+    # Same resources for every question, so the time budget means the same thing. CASCON gave one
+    # conversation at a time 8 CPUs and 16 GB; the bench runs --jobs questions at once on a
+    # 16-CPU, 30 GB machine, so each agent gets AGENT_CPUS and AGENT_MEM (default 4 and 8g).
+    cpus: ${AGENT_CPUS:-4}
+    mem_limit: ${AGENT_MEM:-8g}
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+
+networks:
+  sandbox:
+    internal: true
+  egress: {}

@@ -1,0 +1,617 @@
+{
+ "system": "traceassist",
+ "build": "a4162fd526b12d22",
+ "knowledge": "1d7092adf385d1ab",
+ "run": 1,
+ "id": "Q27b__kvstore-226c",
+ "question_id": "Q27b",
+ "run_id": "kvstore-226c",
+ "trace": "/home/snehpatel/research/TraceCompass AI Agent/symptom_bench/runs/kvstore-226c/trace/kernel",
+ "prompt": "Is anything in kvstore stuck waiting a long time? Which thread, and on what?\n\nBegin your answer with exactly one line: \"Verdict: yes\", \"Verdict: no\", or \"Verdict: cannot tell from this trace\". Then answer the question.",
+ "started": "2026-11-22T17:52:05-0500",
+ "status": "ok",
+ "answer": "Verdict: yes\n\n## Long wait\n\nOver the whole trace (0\u201330,660.980 ms), **kvstore\u2019s main thread, TID 649379**, had a **30,002.259 ms wait in `futex`**, from about **90.768 ms to 30,093.026 ms**. It ended when **client-0 (TID 649382)** woke it. The traced wait chain indicates client-0\u2019s timer wait was on the critical path; its longest relevant timer activity was **300.806 ms**.\n\nA futex wait is commonly used for synchronization, such as a mutex or condition variable [1]. The trace shows this long wait, but does not identify the exact lock or condition. **This wait ended; the findings do not show a thread still waiting at the trace\u2019s end.** The watchdog\u2019s similarly long wait was in `clock_nanosleep`; the client threads\u2019 longest waits were roughly 300 ms in `poll`.\n\n## All sources used:\n1) Blocking in futex - https://man7.org/linux/man-pages/man2/futex.2.html",
+ "response": {
+  "question": "Is anything in kvstore stuck waiting a long time? Which thread, and on what?\n\nBegin your answer with exactly one line: \"Verdict: yes\", \"Verdict: no\", or \"Verdict: cannot tell from this trace\". Then answer the question.",
+  "trace_path": "/home/snehpatel/research/TraceCompass AI Agent/symptom_bench/runs/kvstore-226c/trace/kernel",
+  "plan": {
+   "scope": "thread",
+   "tid": 649379,
+   "intent": "explain_time",
+   "describe_words": null,
+   "deviation_words": null,
+   "find_late_cycles": false,
+   "resolved_from_question": {
+    "tid": 649379,
+    "name": "kvstore",
+    "matched": "thread search: TID 649379 (kvstore): longest blocked wait 30002.259 ms, 99.7x the median of the other suspects (300.806 ms)",
+    "source": "thread_search"
+   },
+   "details_from": "thread_finder symptom long_blocked_waits: [syscalls]",
+   "thread_finder": {
+    "scope": "thread",
+    "symptom": "long_blocked_waits",
+    "target": {
+     "tid": null,
+     "pid": null,
+     "reason": "The question names the kvstore process but asks which individual thread is stuck; no single thread is identified."
+    },
+    "suspects": [
+     {
+      "tid": 649380,
+      "pid": 649379,
+      "reason": "watchdog is blocked 100.0% of its 30066.6 ms lifetime and wakes only once."
+     },
+     {
+      "tid": 649379,
+      "pid": 649379,
+      "reason": "The kvstore main thread is blocked 99.7% of its 30147.7 ms lifetime and has only 4 wakeups."
+     },
+     {
+      "tid": 649385,
+      "pid": 649379,
+      "reason": "client-3 is blocked 99.0% over 30062.3 ms, though its 8590 wakeups suggest repeated normal waits rather than one continuous stall."
+     },
+     {
+      "tid": 649382,
+      "pid": 649379,
+      "reason": "client-0 is blocked 99.2% over 30016.3 ms, with 8570 wakeups."
+     },
+     {
+      "tid": 649383,
+      "pid": 649379,
+      "reason": "client-1 is blocked 99.0% over 30013.3 ms, with 8570 wakeups."
+     }
+    ],
+    "question_numbers": {
+     "magnitude_ms": null,
+     "period_ms": null,
+     "count": null,
+     "range_start_ms": null,
+     "range_end_ms": null
+    },
+    "follow_up": false,
+    "reasoning": "This is a thread-level search within the named kvstore process for long blocked waits. The watchdog and main thread are strongest candidates because they remain blocked for almost their entire 30-second lifetimes with very few wakeups; client threads are secondary candidates because they are also highly blocked but wake frequently.",
+    "target_clear": false,
+    "used": "search pick",
+    "picked": "TID 649379 (kvstore)",
+    "search": {
+     "symptom": "long_blocked_waits",
+     "pick": "TID 649379",
+     "pick_name": "kvstore",
+     "pick_reason": "TID 649379 (kvstore): longest blocked wait 30002.259 ms, 99.7x the median of the other suspects (300.806 ms)",
+     "pick_share_percent": 100.0,
+     "confidence": "low",
+     "exit": "1 analyses not run: they would have gone over the budget",
+     "suspects": [
+      {
+       "tid": 649380,
+       "pid": 649379,
+       "label": "TID 649380",
+       "name": "watchdog",
+       "finder_reason": "watchdog is blocked 100.0% of its 30066.6 ms lifetime and wakes only once.",
+       "level_reached": 2,
+       "verdict": "no",
+       "verdict_reason": "Its 30,059.6 ms blocked wait is a 30,059.6 ms `clock_nanosleep`, which indicates an intentional sleep rather than being stuck.",
+       "verdict_level": 3,
+       "score": 0.0,
+       "share_percent": 0.0,
+       "evidence": {
+        "level_1": {
+         "tid": 649380,
+         "available": true,
+         "lifetime_ms": 30066.579494,
+         "running_ms": 0.675677,
+         "user_mode_ms": 0.662067,
+         "kernel_mode_ms": 0.01361,
+         "waiting_for_cpu_ms": 0.238659,
+         "blocked_ms": 30059.556977,
+         "longest_blocked_ms": 30059.556977,
+         "longest_blocked_start_ns": 1795224193841385098,
+         "longest_blocked_end_ns": 1795224223900942075,
+         "longest_blocked_start_offset_ms": 90.696782,
+         "longest_wait_for_cpu_ms": 0.222719,
+         "longest_wait_for_cpu_start_ns": 1795224193841128869,
+         "longest_wait_for_cpu_end_ns": 1795224193841351588,
+         "longest_wait_for_cpu_start_offset_ms": 90.440553,
+         "system_calls": 8,
+         "in_system_calls_ms": 30059.807216,
+         "longest_system_call_ms": 30059.579537,
+         "longest_system_call_start_ns": 1795224193841381418,
+         "longest_system_call_end_ns": 1795224223900960955,
+         "longest_system_call_start_offset_ms": 90.693102,
+         "longest_system_call_name": "clock_nanosleep"
+        },
+        "level_2": {
+         "claim": "1 system calls here (median 30059.580 ms, p99 30059.580 ms); the longest: clock_nanosleep 30059.580 ms at 90.693 ms.",
+         "call_count": 1,
+         "median_ms": 30059.579537,
+         "longest": [
+          {
+           "system_call": "clock_nanosleep",
+           "duration_ms": 30059.579537,
+           "start_offset_ms": 90.693102
+          }
+         ],
+         "blocked_in": "clock_nanosleep"
+        }
+       }
+      },
+      {
+       "tid": 649379,
+       "pid": 649379,
+       "label": "TID 649379",
+       "name": "kvstore",
+       "finder_reason": "The kvstore main thread is blocked 99.7% of its 30147.7 ms lifetime and has only 4 wakeups.",
+       "level_reached": 2,
+       "verdict": "match",
+       "verdict_reason": "The kvstore main thread has a 30,002.3 ms longest blocked wait in `futex`, far above the 300.8 ms peer median.",
+       "verdict_level": 3,
+       "score": 0.246,
+       "share_percent": 100.0,
+       "evidence": {
+        "level_1": {
+         "tid": 649379,
+         "available": true,
+         "lifetime_ms": 30147.676282,
+         "running_ms": 84.709728,
+         "user_mode_ms": 83.564993,
+         "kernel_mode_ms": 1.144735,
+         "waiting_for_cpu_ms": 0.252059,
+         "blocked_ms": 30051.973276,
+         "longest_blocked_ms": 30002.258824,
+         "longest_blocked_start_ns": 1795224193841456157,
+         "longest_blocked_end_ns": 1795224223843714981,
+         "longest_blocked_start_offset_ms": 90.767841,
+         "longest_wait_for_cpu_ms": 0.200689,
+         "longest_wait_for_cpu_start_ns": 1795224223893341043,
+         "longest_wait_for_cpu_end_ns": 1795224223893541732,
+         "longest_wait_for_cpu_start_offset_ms": 30142.652727,
+         "system_calls": 327,
+         "in_system_calls_ms": 30063.883249,
+         "longest_system_call_ms": 30002.286684,
+         "longest_system_call_start_ns": 1795224193841450757,
+         "longest_system_call_end_ns": 1795224223843737441,
+         "longest_system_call_start_offset_ms": 90.762441,
+         "longest_system_call_name": "futex"
+        },
+        "level_2": {
+         "claim": "1 system calls here (median 30002.287 ms, p99 30002.287 ms); the longest: futex 30002.287 ms at 90.762 ms.",
+         "call_count": 1,
+         "median_ms": 30002.286684,
+         "longest": [
+          {
+           "system_call": "futex",
+           "duration_ms": 30002.286684,
+           "start_offset_ms": 90.762441
+          }
+         ],
+         "blocked_in": "futex"
+        }
+       }
+      },
+      {
+       "tid": 649385,
+       "pid": 649379,
+       "label": "TID 649385",
+       "name": "client-3",
+       "finder_reason": "client-3 is blocked 99.0% over 30062.3 ms, though its 8590 wakeups suggest repeated normal waits rather than one continuous stall.",
+       "level_reached": 2,
+       "verdict": "no",
+       "verdict_reason": "Its longest wait is a 300.6 ms `poll`, close to the other client threads\u2019 roughly 300.7\u2013300.8 ms waits and far below the kvstore thread\u2019s 30,002.3 ms wait.",
+       "verdict_level": 3,
+       "score": 0.0,
+       "share_percent": 0.0,
+       "evidence": {
+        "level_1": {
+         "tid": 649385,
+         "available": true,
+         "lifetime_ms": 30062.261875,
+         "running_ms": 142.961179,
+         "user_mode_ms": 22.108889,
+         "kernel_mode_ms": 120.85229,
+         "waiting_for_cpu_ms": 142.023133,
+         "blocked_ms": 29766.928123,
+         "longest_blocked_ms": 300.630633,
+         "longest_blocked_start_ns": 1795224213595570574,
+         "longest_blocked_end_ns": 1795224213896201207,
+         "longest_blocked_start_offset_ms": 19844.882258,
+         "longest_wait_for_cpu_ms": 2.814817,
+         "longest_wait_for_cpu_start_ns": 1795224211079334756,
+         "longest_wait_for_cpu_end_ns": 1795224211082149573,
+         "longest_wait_for_cpu_start_offset_ms": 17328.64644,
+         "system_calls": 17345,
+         "in_system_calls_ms": 30039.981296,
+         "longest_system_call_ms": 300.660213,
+         "longest_system_call_start_ns": 1795224213595566474,
+         "longest_system_call_end_ns": 1795224213896226687,
+         "longest_system_call_start_offset_ms": 19844.878158,
+         "longest_system_call_name": "poll"
+        },
+        "level_2": {
+         "claim": "1 system calls here (median 300.660 ms, p99 300.660 ms); the longest: poll 300.660 ms at 19,844.878 ms.",
+         "call_count": 1,
+         "median_ms": 300.660213,
+         "longest": [
+          {
+           "system_call": "poll",
+           "duration_ms": 300.660213,
+           "start_offset_ms": 19844.878158
+          }
+         ],
+         "blocked_in": "poll"
+        }
+       }
+      },
+      {
+       "tid": 649382,
+       "pid": 649379,
+       "label": "TID 649382",
+       "name": "client-0",
+       "finder_reason": "client-0 is blocked 99.2% over 30016.3 ms, with 8570 wakeups.",
+       "level_reached": 2,
+       "verdict": "no",
+       "verdict_reason": "Its longest wait is a 300.8 ms `poll`, close to the other client threads\u2019 roughly 300.6\u2013300.7 ms waits and far below the kvstore thread\u2019s 30,002.3 ms wait.",
+       "verdict_level": 3,
+       "score": 0.0,
+       "share_percent": 0.0,
+       "evidence": {
+        "level_1": {
+         "tid": 649382,
+         "available": true,
+         "lifetime_ms": 30016.308056,
+         "running_ms": 138.210062,
+         "user_mode_ms": 21.602246,
+         "kernel_mode_ms": 116.607816,
+         "waiting_for_cpu_ms": 96.908505,
+         "blocked_ms": 29767.181916,
+         "longest_blocked_ms": 300.806338,
+         "longest_blocked_start_ns": 1795224208841758276,
+         "longest_blocked_end_ns": 1795224209142564614,
+         "longest_blocked_start_offset_ms": 15091.06996,
+         "longest_wait_for_cpu_ms": 0.772226,
+         "longest_wait_for_cpu_start_ns": 1795224212704925776,
+         "longest_wait_for_cpu_end_ns": 1795224212705698002,
+         "longest_wait_for_cpu_start_offset_ms": 18954.23746,
+         "system_calls": 17312,
+         "in_system_calls_ms": 29994.537962,
+         "longest_system_call_ms": 300.839358,
+         "longest_system_call_start_ns": 1795224208841750976,
+         "longest_system_call_end_ns": 1795224209142590334,
+         "longest_system_call_start_offset_ms": 15091.06266,
+         "longest_system_call_name": "poll"
+        },
+        "level_2": {
+         "claim": "1 system calls here (median 300.839 ms, p99 300.839 ms); the longest: poll 300.839 ms at 15,091.063 ms.",
+         "call_count": 1,
+         "median_ms": 300.839358,
+         "longest": [
+          {
+           "system_call": "poll",
+           "duration_ms": 300.839358,
+           "start_offset_ms": 15091.06266
+          }
+         ],
+         "blocked_in": "poll"
+        }
+       }
+      },
+      {
+       "tid": 649383,
+       "pid": 649379,
+       "label": "TID 649383",
+       "name": "client-1",
+       "finder_reason": "client-1 is blocked 99.0% over 30013.3 ms, with 8570 wakeups.",
+       "level_reached": 2,
+       "verdict": "no",
+       "verdict_reason": "Its longest wait is a 300.7 ms `poll`, close to the other client threads\u2019 roughly 300.6\u2013300.8 ms waits and far below the kvstore thread\u2019s 30,002.3 ms wait.",
+       "verdict_level": 3,
+       "score": 0.0,
+       "share_percent": 0.0,
+       "evidence": {
+        "level_1": {
+         "tid": 649383,
+         "available": true,
+         "lifetime_ms": 30013.289291,
+         "running_ms": 159.294665,
+         "user_mode_ms": 23.996937,
+         "kernel_mode_ms": 135.297728,
+         "waiting_for_cpu_ms": 128.180338,
+         "blocked_ms": 29714.485653,
+         "longest_blocked_ms": 300.699692,
+         "longest_blocked_start_ns": 1795224215096029906,
+         "longest_blocked_end_ns": 1795224215396729598,
+         "longest_blocked_start_offset_ms": 21345.34159,
+         "longest_wait_for_cpu_ms": 2.227459,
+         "longest_wait_for_cpu_start_ns": 1795224217868325571,
+         "longest_wait_for_cpu_end_ns": 1795224217870553030,
+         "longest_wait_for_cpu_start_offset_ms": 24117.637255,
+         "system_calls": 17314,
+         "in_system_calls_ms": 29989.122255,
+         "longest_system_call_ms": 300.730122,
+         "longest_system_call_start_ns": 1795224215096025576,
+         "longest_system_call_end_ns": 1795224215396755698,
+         "longest_system_call_start_offset_ms": 21345.33726,
+         "longest_system_call_name": "poll"
+        },
+        "level_2": {
+         "claim": "1 system calls here (median 300.730 ms, p99 300.730 ms); the longest: poll 300.730 ms at 21,345.337 ms.",
+         "call_count": 1,
+         "median_ms": 300.730122,
+         "longest": [
+          {
+           "system_call": "poll",
+           "duration_ms": 300.730122,
+           "start_offset_ms": 21345.33726
+          }
+         ],
+         "blocked_in": "poll"
+        }
+       }
+      }
+     ],
+     "judge": [
+      {
+       "level": 2,
+       "status": "done",
+       "cached": false,
+       "verdicts": [
+        {
+         "suspect": "TID 649380",
+         "verdict": "no",
+         "reason": "Its 30,059.6 ms blocked wait is in clock_nanosleep, which indicates an intentional sleep rather than being stuck."
+        },
+        {
+         "suspect": "TID 649379",
+         "verdict": "match",
+         "reason": "Its longest blocked wait is 30,002.3 ms in futex, far above the 300.8 ms peer median, indicating a standout long wait."
+        },
+        {
+         "suspect": "TID 649385",
+         "verdict": "no",
+         "reason": "Its longest blocked wait is 300.6 ms in poll, well below the 30,002.3 ms peer median."
+        },
+        {
+         "suspect": "TID 649382",
+         "verdict": "no",
+         "reason": "Its longest blocked wait is 300.8 ms in poll, well below the 30,002.3 ms peer median."
+        },
+        {
+         "suspect": "TID 649383",
+         "verdict": "no",
+         "reason": "Its longest blocked wait is 300.7 ms in poll, well below the 30,002.3 ms peer median."
+        }
+       ],
+       "reasoning": "The kvstore main thread (TID 649379) stands out with a 30-second futex wait. The watchdog's similarly long wait is in clock_nanosleep, while the clients' longest poll waits are about 300 ms.",
+       "ms": 4501.596
+      },
+      {
+       "level": 3,
+       "status": "done",
+       "cached": false,
+       "verdicts": [
+        {
+         "suspect": "TID 649380",
+         "verdict": "no",
+         "reason": "Its 30,059.6 ms blocked wait is a 30,059.6 ms `clock_nanosleep`, which indicates an intentional sleep rather than being stuck."
+        },
+        {
+         "suspect": "TID 649379",
+         "verdict": "match",
+         "reason": "The kvstore main thread has a 30,002.3 ms longest blocked wait in `futex`, far above the 300.8 ms peer median."
+        },
+        {
+         "suspect": "TID 649385",
+         "verdict": "no",
+         "reason": "Its longest wait is a 300.6 ms `poll`, close to the other client threads\u2019 roughly 300.7\u2013300.8 ms waits and far below the kvstore thread\u2019s 30,002.3 ms wait."
+        },
+        {
+         "suspect": "TID 649382",
+         "verdict": "no",
+         "reason": "Its longest wait is a 300.8 ms `poll`, close to the other client threads\u2019 roughly 300.6\u2013300.7 ms waits and far below the kvstore thread\u2019s 30,002.3 ms wait."
+        },
+        {
+         "suspect": "TID 649383",
+         "verdict": "no",
+         "reason": "Its longest wait is a 300.7 ms `poll`, close to the other client threads\u2019 roughly 300.6\u2013300.8 ms waits and far below the kvstore thread\u2019s 30,002.3 ms wait."
+        }
+       ],
+       "reasoning": "The kvstore main thread stands out with a roughly 30-second futex wait. The watchdog\u2019s similarly long wait is in `clock_nanosleep`, while the clients\u2019 longest waits are short polls.",
+       "ms": 7581.088
+      }
+     ],
+     "budget": {
+      "event_count": 3125684,
+      "cap_events": 2344263,
+      "spent_events": 1076879,
+      "spent_percent_of_cap": 45.9,
+      "wall_ms": 13440.308,
+      "analyses": [
+       {
+        "suspect": "TID 649380",
+        "level": 1,
+        "analysis": "state profile (state history)",
+        "estimated_cost_events": 153254,
+        "status": "done",
+        "ms": 143.178
+       },
+       {
+        "suspect": "TID 649379",
+        "level": 1,
+        "analysis": "state profile (state history)",
+        "estimated_cost_events": 153668,
+        "status": "done",
+        "ms": 139.881
+       },
+       {
+        "suspect": "TID 649385",
+        "level": 1,
+        "analysis": "state profile (state history)",
+        "estimated_cost_events": 153232,
+        "status": "done",
+        "ms": 131.066
+       },
+       {
+        "suspect": "TID 649382",
+        "level": 1,
+        "analysis": "state profile (state history)",
+        "estimated_cost_events": 152998,
+        "status": "done",
+        "ms": 143.842
+       },
+       {
+        "suspect": "TID 649383",
+        "level": 1,
+        "analysis": "state profile (state history)",
+        "estimated_cost_events": 152983,
+        "status": "done",
+        "ms": 134.028
+       },
+       {
+        "suspect": "TID 649380",
+        "level": 2,
+        "analysis": "syscalls.longest (state system)",
+        "estimated_cost_events": 153219,
+        "status": "done",
+        "ms": 136.052
+       },
+       {
+        "suspect": "TID 649379",
+        "level": 2,
+        "analysis": "syscalls.longest (state system)",
+        "estimated_cost_events": 152927,
+        "status": "done",
+        "ms": 123.526
+       },
+       {
+        "suspect": "TID 649382",
+        "level": 2,
+        "analysis": "syscalls.longest (state system)",
+        "estimated_cost_events": 1533,
+        "status": "done",
+        "ms": 138.777
+       },
+       {
+        "suspect": "TID 649383",
+        "level": 2,
+        "analysis": "syscalls.longest (state system)",
+        "estimated_cost_events": 1533,
+        "status": "done",
+        "ms": 128.568
+       },
+       {
+        "suspect": "TID 649385",
+        "level": 2,
+        "analysis": "syscalls.longest (state system)",
+        "estimated_cost_events": 1532,
+        "status": "done",
+        "ms": 138.304
+       },
+       {
+        "suspect": "TID 649379",
+        "level": 3,
+        "analysis": "state split and per-state explainers of its longest blocked wait",
+        "estimated_cost_events": 3058532,
+        "status": "not run: over the budget"
+       }
+      ]
+     }
+    }
+   }
+  },
+  "target": {
+   "tid": 649379,
+   "name": "kvstore",
+   "trace_path": "/home/snehpatel/research/TraceCompass AI Agent/symptom_bench/runs/kvstore-226c/trace/kernel"
+  },
+  "view_plan": {
+   "source": "view_picker",
+   "views": [
+    {
+     "id": "org.eclipse.linuxtools.tmf.analysis.graph.ui.criticalpath.view.criticalpathview",
+     "name": "Critical Path",
+     "key": "critical_path",
+     "look_at": "Follow TID 649379 (kvstore) through this long futex wait. The path shows TID 649382 (client-0) in TIMER state and handing off directly to kvstore when it resumes.",
+     "tsp_output": null
+    },
+    {
+     "id": "org.eclipse.tracecompass.analysis.os.linux.views.controlflow",
+     "name": "Control Flow",
+     "key": "control_flow",
+     "look_at": "Inspect TID 649379 (kvstore)'s row for the long blocked stretch inside futex, and compare it with TID 649382 (client-0)'s activity over the same interval to see what ended the wait.",
+     "tsp_output": "org.eclipse.tracecompass.internal.analysis.os.linux.core.threadstatus.ThreadStatusDataProvider"
+    }
+   ],
+   "selection": {
+    "start_ns": 1795224193841456157,
+    "end_ns": 1795224223843714981,
+    "start_offset_ms": 90.767841,
+    "end_offset_ms": 30093.026665
+   },
+   "zoom": {
+    "start_ns": 1795224193750688316,
+    "end_ns": 1795224224411668107,
+    "rule": "Critical Path: pad 0.05 x the moment each side, at least 0.05 ms"
+   },
+   "moment": "critical_path_wait",
+   "follow_tid": 649379,
+   "select_tid": 649379,
+   "plot_tids": [],
+   "plot_series": [],
+   "reason": "the wait whose critical path was computed (a typical wait of the group in blocked.wakers that is not waiting for new work)",
+   "picker_reasoning": "The question asks what kvstore was waiting on, so the computed long wait is the most relevant moment. Critical Path explains the dependency and waker; Control Flow shows kvstore's blocked state alongside client-0's activity.",
+   "views_not_offered": [
+    "kernel_memory (no kmem_mm_page_* events in the trace)"
+   ],
+   "rule_based": {
+    "views": [
+     "System Call Latency vs Time",
+     "System Call Latencies",
+     "Control Flow"
+    ],
+    "reason": "the thread's longest system call (futex)"
+   },
+   "clock_range": "20:23:13.841 456 157 \u2013 20:23:43.843 714 981",
+   "summary": "Critical Path + Control Flow, 90.768\u201330,093.027 ms into the trace (20:23:13.841 456 157 \u2013 20:23:43.843 714 981 on the views' time axis) (following TID 649379): the wait whose critical path was computed (a typical wait of the group in blocked.wakers that is not waiting for new work).\n- **Critical Path:** Follow TID 649379 (kvstore) through this long futex wait. The path shows TID 649382 (client-0) in TIMER state and handing off directly to kvstore when it resumes.\n- **Control Flow:** Inspect TID 649379 (kvstore)'s row for the long blocked stretch inside futex, and compare it with TID 649382 (client-0)'s activity over the same interval to see what ended the wait."
+  },
+  "why_section": "**Why this thread:** TID 649379 (kvstore), 100%. The kvstore main thread has a 30,002.3 ms longest blocked wait in `futex`, far above the 300.8 ms peer median. Checked, no sign of it: TID 649380 (watchdog), TID 649385 (client-3), TID 649382 (client-0), TID 649383 (client-1). Confidence: low. (Search: 1 analyses not run: they would have gone over the budget.)",
+  "stage_durations_ms": {
+   "target_resolver": 11.101703,
+   "thread_finder": 5969.977287,
+   "thread_search": 13440.385612,
+   "trace_overview": 0.226638,
+   "unified_explainer": 345.597903,
+   "tmll_analysis": 20688.591688,
+   "rag_retrieval": 5209.895405,
+   "view_picker": 2551.655438,
+   "llm_call": 5784.962707
+  },
+  "trace_source": "own_copy",
+  "findings_count": 11,
+  "response_id": "resp_07c22afd6eb11be3006b0372461b4c87d18f4937a625077ac3",
+  "model": "gpt-6-luna",
+  "usage": {
+   "input_tokens": 17850,
+   "input_tokens_details": {
+    "cache_write_tokens": 13901,
+    "cache_write_tokens_details": {
+     "ttl_12h_tokens": 0,
+     "ttl_30m_tokens": 13901
+    },
+    "cached_tokens": 3946
+   },
+   "output_tokens": 612,
+   "output_tokens_details": {
+    "reasoning_tokens": 376
+   },
+   "total_tokens": 18462
+  }
+ },
+ "elapsed_s": 54.01,
+ "model": "gpt-6-luna",
+ "verdict": {
+  "verdict": "present",
+  "position": "first",
+  "line": "Verdict: yes"
+ }
+}

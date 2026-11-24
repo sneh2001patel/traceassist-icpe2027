@@ -1,0 +1,39 @@
+{
+ "system": "codex",
+ "build": "583a6ff11f5adb23",
+ "run": 1,
+ "id": "Q56b__pipeline-394e",
+ "question_id": "Q56b",
+ "run_id": "pipeline-394e",
+ "trace": "/home/snehpatel/research/TraceCompass AI Agent/symptom_bench/runs/pipeline-394e/trace/kernel",
+ "prompt": "Do lots of pipeline's threads wake up when only one has anything to do? How would I fix it?\n\nBegin your answer with exactly one line: \"Verdict: yes\", \"Verdict: no\", or \"Verdict: cannot tell from this trace\". Then answer the question.",
+ "started": "2026-11-23T15:41:48-0500",
+ "model": "gpt-6-luna",
+ "reasoning_effort": "medium",
+ "question_timeout_s": 1800,
+ "elapsed_s": 418.98,
+ "exit_code": 0,
+ "session_id": "01a20a24-ba8f-7792-99af-44a1430a0d50",
+ "turns": 1,
+ "usage": {
+  "input_tokens": 912232,
+  "cached_tokens": 842887,
+  "output_tokens": 17209,
+  "reasoning_tokens": 10639
+ },
+ "n_commands": 17,
+ "item_types": {
+  "agent_message": 4,
+  "command_execution": 17
+ },
+ "flagged_commands": [],
+ "errors": [],
+ "warnings": [],
+ "answer": "Verdict: yes\n\nIn the readable 4.174-second interval, the pipeline\u2019s `parser` thread (TID 645046) repeatedly woke the whole sink pool. It made 8,159 `futex` calls with op 129 (`FUTEX_WAKE | FUTEX_PRIVATE_FLAG`) and `val=2147483647`, which asks the kernel to wake every waiter on that futex. The kernel reported waking all 16 waiters in 5,700 calls and at least 15 in 6,497 calls\u2014about 15.2 waiters per call on average.\n\nThose waiters were `sink-0` through `sink-15` (TIDs 645030\u2013645045). Each received roughly 8,200\u20138,300 wakeups from the parser. For example, on CPU 4, the parser woke `sink-8` (TID 645038) on CPU 6, `sink-1` (TID 645031) on CPU 5, and `sink-14` (TID 645044) on CPU 7 within about 18 microseconds. The parser\u2019s broad futex calls took a median of 17.28 \u00b5s and a 90th percentile of 22.19 \u00b5s.\n\nMost sink run slices were very short: the median was about 3.5 \u00b5s, and roughly 9,800\u201310,200 switches per sink ended in interruptible sleep. That pattern is consistent with many workers waking, checking for work, then going back to sleep. The trace doesn\u2019t record the work queue, so it can\u2019t prove that exactly one sink had work on each wakeup; it does show a pronounced wakeup herd.\n\nTo reduce it, replace the parser\u2019s broadcast wake with a one-worker notification for one available job. If several jobs arrive together, wake up to the number of jobs and idle workers, or batch notifications. Keep workers checking the queue predicate in a loop around the wait. If the code calls futex directly, use a wake count that matches the available work instead of `INT_MAX`; if it uses condition variables, inspect the broadcast path and consider signaling one waiter per job.\n\nThese counts cover the readable interval: Babeltrace reports a malformed event in one CTF stream after decoding about 2.19 million events, so later trace data may be missing.",
+ "status": "ok",
+ "verdict": {
+  "verdict": "present",
+  "position": "first",
+  "line": "Verdict: yes"
+ }
+}

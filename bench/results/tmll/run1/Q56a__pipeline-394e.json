@@ -1,0 +1,32 @@
+{
+ "system": "tmll",
+ "build": "f683903a428a6b60",
+ "run": 1,
+ "id": "Q56a__pipeline-394e",
+ "question_id": "Q56a",
+ "run_id": "pipeline-394e",
+ "trace": "/home/snehpatel/research/TraceCompass AI Agent/symptom_bench/runs/pipeline-394e/trace/kernel",
+ "prompt": "In pipeline, does each new item wake many waiting threads, with all but one going straight back to sleep? If so, which threads, and what change would fix it?\n\nBegin your answer with exactly one line: \"Verdict: yes\", \"Verdict: no\", or \"Verdict: cannot tell from this trace\". Then answer the question.",
+ "started": "2026-11-23T06:01:28-0500",
+ "evidence_tokens": 191804,
+ "evidence_sha256": "0410809060452248033f73431ea4ae4454230f86e8723a0cbb1b9426ce3206c6",
+ "tmll_revision": "61d408b2cdedcf4b6df96c787a310e91c59f595a",
+ "reasoning_effort": null,
+ "model": "gpt-6-luna",
+ "response_status": "completed",
+ "incomplete_reason": null,
+ "usage": {
+  "input_tokens": 191994,
+  "output_tokens": 1214,
+  "cached_tokens": 0,
+  "reasoning_tokens": 888
+ },
+ "elapsed_s": 14.47,
+ "answer": "Verdict: yes\n\nThe trace is consistent with a thundering herd on the shared futex: all 16 sink workers appear as waiters on the same futex address (`94518829081440`):\n\n`sink-0` (645030), `sink-1` (645031), `sink-2` (645032), `sink-3` (645033), `sink-4` (645034), `sink-5` (645035), `sink-6` (645036), `sink-7` (645037), `sink-8` (645038), `sink-9` (645039), `sink-10` (645040), `sink-11` (645041), `sink-12` (645042), `sink-13` (645043), `sink-14` (645044), and `sink-15` (645045).\n\nTheir sampled states are dominated by waiting: each has about 19 seconds in \u201cWait blocked,\u201d and roughly 8.4\u20139.1 seconds in \u201cWait for CPU.\u201d The futex analysis also records 982,772 `WAKE` operations. That supports the herd interpretation, though the sampled results do not directly tie each application item to a particular wake-and-reblock sequence.\n\nIf one item should be consumed by one sink, replace a broadcast/wake-all with a targeted wake-one\u2014for example, `pthread_cond_signal()` or `futex_wake(..., 1)`\u2014and wake more workers only when there are multiple items available.",
+ "status": "ok",
+ "verdict": {
+  "verdict": "present",
+  "position": "first",
+  "line": "Verdict: yes"
+ }
+}

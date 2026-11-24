@@ -1,0 +1,684 @@
+#!/usr/bin/env python3
+# -*- coding: UTF-8 -*-
+# PYTHON_ARGCOMPLETE_OK
+#
+# The MIT License (MIT)
+#
+# Copyright (C) 2020, 2023 - Ericsson
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in
+# all copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+
+"""Manual CLI script file."""
+
+import argparse
+import json
+import sys
+
+from os.path import os
+
+import re
+import argcomplete
+import requests
+
+from termcolor import colored
+from tree_model import TreeModel
+from tsp.tsp_client import TspClient
+
+TRACE_MISSING = "Trace UUID is missing"
+
+
+def __get_descriptor(uuid, output_id):
+    resp = tsp_client.fetch_experiment_output(uuid, output_id)
+    if resp.status_code == 200:
+        return resp.model
+    return None
+
+
+# pylint: disable=redefined-outer-name
+def __get_tree(uuid, outputid, treetype):
+    if uuid is not None:
+
+        output_descriptor = __get_descriptor(
+            uuid, outputid)
+
+        if output_descriptor is None:
+            print("Error fetching data provider")
+            sys.exit(1)
+
+        response = None
+
+        if treetype == "TIME_GRAPH":
+            response = tsp_client.fetch_timegraph_tree(
+                uuid, outputid)
+        elif treetype == "TREE_TIME_XY":
+            response = tsp_client.fetch_xy_tree(
+                uuid, outputid)
+        else:
+            response = tsp_client.fetch_datatree(
+                uuid, outputid)
+            # fall back to timegraph-tree for older trace servers
+            if response.status_code != 200:
+                response = tsp_client.fetch_timegraph_tree(
+                    uuid, outputid)
+
+        if response is None:
+            sys.exit(1)
+
+        if response.status_code == 200:
+            tree = response.model.model
+            if tree is None:
+                print("Tree had no model; retry?")
+                sys.exit(1)
+
+            tree_model = TreeModel(tree.entries, tree.headers)
+            tree_model.print()
+            sys.exit(0)
+        else:
+            sys.exit(1)
+    else:
+        print(TRACE_MISSING)
+        sys.exit(1)
+    return None
+
+def __parse_params (parameters_string):
+    pairs = re.split(';', parameters_string)
+    _params = {}
+    for pair in pairs:
+        pair_list = re.split('=', pair)
+        if len(pair_list) < 2:
+            return None
+
+        _params[pair_list[0]] = pair_list[1]
+
+    return _params
+
+def __get_parameters(options):
+    if not options.params and not options.json_file:
+        print("No parameters provided with --params or --json-file")
+        sys.exit(1)
+
+    _params = {}
+    if options.params is not None:
+        _params = __parse_params(options.params)
+
+    if options.json_file is not None:
+        with open(options.json_file, 'r') as file:
+            _params = json.loads(file.read())
+
+        if not _params:
+            print("Invalid params provided")
+            sys.exit(1)
+    return _params
+
+
+DESCRIPTION = """CLI client to send Trace Server Protocol commands to a Trace Server."""
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description=DESCRIPTION)
+
+    parser.add_argument("--ip", dest="ip_address",
+                        help="IP address  of trace server", metavar="IP", default="localhost")
+    parser.add_argument("--port", dest="port",
+                        help="port of trace server", metavar="PORT", default="8080")
+    parser.add_argument("--open-trace", dest="trace",
+                        help="Path to trace to open", metavar="TRACE_PATH")
+    parser.add_argument("--name", dest="name",
+                        metavar="NAME", help="trace name")
+    parser.add_argument("--list-trace", dest="list_trace",
+                        help="Get details on the given trace", metavar="UUID")
+    parser.add_argument("--list-traces", dest="list_traces",
+                        action='store_true',  help="List all open traces on the server")
+    parser.add_argument("--delete-trace", dest="delete_trace",
+                        help="Delete a trace on the server", metavar="UUID")
+    parser.add_argument("--open-experiment", dest="experiment",
+                        help="Open experiment on the server", metavar="EXP_NAME")
+    parser.add_argument("--list-experiment", dest="list_experiment",
+                        help="Get details on the given experiment", metavar="UUID")
+    parser.add_argument("--list-experiments", dest="list_experiments",
+                        action='store_true',  help="List all open experiments on the server")
+    parser.add_argument("--delete-experiment", dest="delete_experiment",
+                        help="Delete an experiment on the server", metavar="UUID")
+    parser.add_argument("--list-outputs", dest="list_outputs",
+                        help="Get details on the given trace", metavar="UUID")
+    parser.add_argument("--list-output", dest="list_output",
+                        help="Get details on the given output of a trace", metavar="OUTPUT_ID")
+    parser.add_argument("--get-tree", dest="get_tree",
+                        help="Get the tree of an output of type DATA_TREE", metavar="OUTPUT_ID")
+    parser.add_argument("--get-virtual-table-columns", dest="get_virtual_table_columns",
+                        help="Get the columns of an output of type DATA_TREE", metavar="OUTPUT_ID")
+    parser.add_argument("--get-virtual-table-lines", dest="get_virtual_table_lines",
+                        help="Get the tree lines of an output of type DATA_TREE", metavar="OUTPUT_ID")
+    parser.add_argument("--table-line-index", dest="table_line_index",
+                        help="The index of the table line to start fetching", metavar="TABLE_LINE_INDEX")
+    parser.add_argument("--table-line-count", dest="table_line_count",
+                        help="The number of table lines to fetch", metavar="TABLE_LINE_COUNT")
+    parser.add_argument("--table-times", dest="table_times",
+                        help="The list of times to fetch from table", nargs="*")
+    parser.add_argument("--table-column-ids", dest="table_column_ids",
+                        help="The list of column ids to fetch", nargs="*")
+    parser.add_argument("--table-search-direction", dest="table_search_direction",
+                        help="The direction to search for the table lines", metavar="TABLE_LINE_SEARCH_DIRECTION")
+    parser.add_argument("--table-search-expression", action="append", nargs=2, metavar=("COLUMN_ID", "EXPRESSION"), dest="table_search_expression",
+                        help="The column's expression to search for the table lines")
+    parser.add_argument("--get-timegraph-tree", dest="get_timegraph_tree",
+                        help="Get the tree of an output of type TIME_GRAPH", metavar="OUTPUT_ID")
+    parser.add_argument("--get-xy-tree", dest="get_xy_tree",
+                        help="Get the tree of an output of type TREE_TIME_XY", metavar="OUTPUT_ID")
+    parser.add_argument("--get-xy", dest="get_xy",
+                        help="Get the XY data of an output", metavar="OUTPUT_ID")
+    parser.add_argument("--items", dest="items",
+                        help="The list of XY items requested", nargs="*")
+    parser.add_argument("--time-range", dest="time_range",
+                        help="The time range requested", nargs=3, metavar=("START", "END", "NUM_TIMES"))
+    parser.add_argument("--uuid", dest="uuid", help="The UUID of a trace")
+    parser.add_argument("--uuids", dest="uuids",
+                        help="The list of UUIDs", nargs="*")
+    parser.add_argument("--do-delete-traces", dest="do_delete_traces",
+                        action='store_true', help="Also delete traces when deleting experiment")
+    parser.add_argument("--paths", dest="paths",
+                        help="List of trace paths to be part of an experiment", nargs="*")
+    parser.add_argument("--list-configuration-sources", dest="list_configuration_sources",
+                        action='store_true', help="Get the available configuration sources")
+    parser.add_argument("--list-configuration-source", dest="list_configuration_source",
+                        help="Get a available configuration source", metavar="TYPE_ID")
+    parser.add_argument("--list-configurations", dest="list_configurations",
+                        help="Get the configurations loaded for given type", metavar="TYPE_ID")
+    parser.add_argument("--list-configuration", dest="list_configuration",
+                        help="Get a configuration loaded for given type and config id", metavar="CONFIG_ID")
+    parser.add_argument("--load-configuration", dest="load_configuration",
+                        action='store_true', help="Load an configuration using paramemeters provided by --params or --json-file")
+    parser.add_argument("--update-configuration", dest="update_configuration",
+                        action='store_true', help="Update an configuration using paramemeters provided by --params or --json-file")
+    parser.add_argument("--delete-configuration", dest="delete_configuration",
+                        help="Delete a configuration", metavar="CONFIGURATION_ID")
+    parser.add_argument("--type-id", dest="type_id", help="id of configuration source type")
+    parser.add_argument("--config-id", dest="config_id", help="id of configuration")
+    parser.add_argument("--params", dest="params", help="semicolon separated key value pairs (key1=val1;key2=val2)")
+    parser.add_argument("--get-health", dest="get_health", action='store_true', help="Get the health status of the server")
+    parser.add_argument("--get-identifier", dest="get_identifier", action='store_true', help="Get important information regarding the trace server and the system")
+    parser.add_argument("--list-output-configuration-sources", dest="list_output_configuration_sources",
+                        help="Get available configuration sources for a given experiment and output", metavar="OUTPUT_ID")
+    parser.add_argument("--list-output-configuration-source", dest="list_output_configuration_source",
+                        help="Get configuration source for a given experiment, output and type", metavar="TYPE_ID")
+    parser.add_argument("--create-output", dest="create_output", help="Create derived output provided by --param or --json-file", metavar="OUTPUT_ID")
+    parser.add_argument("--delete-output", dest="delete_output", help="Delete derived output", metavar="DERIVED_OUTPUT_ID")
+    parser.add_argument("--output-id", dest="output_id", help="The output ID")
+    parser.add_argument("--json-file", dest="json_file", help="JSON file with parameter")
+
+    argcomplete.autocomplete(parser)
+    options = parser.parse_args()
+
+    # Check for arguments
+    if len(sys.argv) == 1:
+        parser.print_help()
+        sys.exit(1)
+
+    API_URL_BASE = 'http://{0}:{1}/tsp/api/'.format(
+        options.ip_address, options.port)
+    tsp_client = TspClient(API_URL_BASE)
+
+    try:
+        if options.trace:
+            if options.name is not None:
+                response = tsp_client.open_trace(options.name, options.trace)
+                if response.status_code == 200:
+                    res = response.model
+                    print('Successfully opened trace')
+                    print('-------------------------')
+                    res.print()
+                    sys.exit(0)
+                else:
+                    sys.exit(1)
+            else:
+                print("Provide a name for the trace using option --name")
+                sys.exit(1)
+
+        if options.list_trace:
+            response = tsp_client.fetch_trace(options.list_trace)
+            if response.status_code == 200:
+                res = response.model
+                print('Successfully listed trace')
+                print('-------------------------')
+                res.print()
+                sys.exit(0)
+            else:
+                sys.exit(1)
+
+        if options.list_traces:
+            response = tsp_client.fetch_traces()
+            if response.status_code == 200:
+                if not response.model.traces:
+                    print("No traces open on the server")
+                else:
+                    print('Successfully listed traces')
+                    print('--------------------------')
+                    print(response.model.to_json())
+                sys.exit(0)
+            else:
+                sys.exit(1)
+
+        if options.delete_trace:
+            response = tsp_client.delete_trace(options.delete_trace, False)
+            if response.status_code == 200:
+                print('Successfully deleted trace')
+                print('--------------------------')
+                print(response.model.to_json())
+                sys.exit(0)
+            else:
+                sys.exit(1)
+
+        trace_uuids = []
+        if options.experiment:
+            if options.paths is not None:
+                for path in options.paths:
+                    name = os.path.basename(os.path.normpath(path))
+                    response = tsp_client.open_trace(name, path)
+                    if response.status_code == 200:
+                        res = response.model
+                        trace_uuids.append(res.UUID)
+                    else:
+                        sys.exit(1)
+            elif options.uuids is not None:
+                trace_uuids = options.uuids
+            else:
+                print("Provide a path for the trace using option --paths")
+                sys.exit(1)
+
+            response = tsp_client.open_experiment(
+                options.experiment, trace_uuids)
+            if response.status_code == 200:
+                print('Successfully opened experiment')
+                print('------------------------------')
+                print(response.model.to_json())
+                sys.exit(0)
+            else:
+                sys.exit(1)
+
+        if options.list_experiment:
+            response = tsp_client.fetch_experiment(options.list_experiment)
+            if response.status_code == 200:
+                print('Successfully listed experiment')
+                print('------------------------------')
+                print(response.model.to_json())
+                sys.exit(0)
+            else:
+                sys.exit(1)
+
+        if options.list_experiments:
+            response = tsp_client.fetch_experiments()
+            if response.status_code == 200:
+                if not response.model.experiments:
+                    print("No experiments open on the server")
+                else: 
+                    print('Successfully listed experiments')
+                    print('-------------------------------')
+                    print(response.model.to_json())
+                sys.exit(0)
+            else:
+                sys.exit(1)
+
+        if options.delete_experiment:
+            response = tsp_client.delete_experiment(options.delete_experiment)
+            if response.status_code == 200:
+                print('Successfully deleted experiment')
+                print('-------------------------------')
+                print(response.model.to_json())
+                if options.do_delete_traces:
+                    for trace in response.model.traces.traces:
+                        del_response = tsp_client.delete_trace(
+                            trace.UUID, False)
+                        if del_response.status_code == 200:
+                            print("Successfully deleted trace")
+                        else:
+                            print("Failed deleting trace " + trace.name)
+                sys.exit(0)
+            else:
+                sys.exit(1)
+
+        if options.list_outputs:
+            response = tsp_client.fetch_experiment_outputs(
+                options.list_outputs)
+            if response.status_code == 200:
+                output_descriptors = response.model
+                if not output_descriptors:
+                    print('No output descriptors for this trace')
+                else:
+                    print('Successfully listed outputs')
+                    print('---------------------------')
+                    print(output_descriptors.to_json())
+                sys.exit(0)
+            else:
+                print("List outputs failed")
+                sys.exit(1)
+
+        if options.list_output:
+            if options.uuid is not None:
+                output_descriptor = __get_descriptor(
+                    options.uuid, options.list_output)
+                if output_descriptor is not None:
+                    print('Successfully listed output')
+                    print('--------------------------')
+                    print(output_descriptor.to_json())
+            else:
+                print(TRACE_MISSING)
+                sys.exit(1)
+
+        if options.get_tree:
+            __get_tree(options.uuid, options.get_tree, "DATA_TREE")
+
+        if options.get_timegraph_tree:
+            __get_tree(options.uuid, options.get_timegraph_tree, "TIME_GRAPH")
+
+        if options.get_xy_tree:
+            __get_tree(options.uuid, options.get_xy_tree, "TREE_TIME_XY")
+
+        if options.get_xy:
+            if not options.items:
+                print("Provide requested --items for the XY data")
+                sys.exit(1)
+
+            if not options.time_range:
+                print("Provide requested --time-range for the XY data")
+                sys.exit(1)
+
+            if options.uuid is not None:
+                start_time = int(options.time_range[0])
+                end_time = int(options.time_range[1])
+                nb_times = int(options.time_range[2])
+
+                parameters = {
+                    TspClient.REQUESTED_ITEM_KEY: list(map(int, options.items)),
+                    TspClient.REQUESTED_TIME_RANGE_KEY: {
+                        TspClient.REQUESTED_TIME_RANGE_START_KEY: start_time,
+                        TspClient.REQUESTED_TIME_RANGE_END_KEY: end_time,
+                        TspClient.REQUESTED_TIME_RANGE_NUM_TIMES_KEY: nb_times
+                    }
+                }
+                
+                params = {TspClient.PARAMETERS_KEY: parameters}
+
+                response = tsp_client.fetch_xy(
+                    options.uuid, options.get_xy, params)
+                if response.status_code == 200:
+                    xyModel = response.model.model
+                    print(xyModel)
+                    sys.exit(0)
+                else:
+                    sys.exit(1)
+            else:
+                print(TRACE_MISSING)
+                sys.exit(1)
+
+        if options.get_virtual_table_columns:
+            if options.uuid is not None:
+                response = tsp_client.fetch_virtual_table_columns(
+                    options.uuid, options.get_virtual_table_columns)
+
+                if response.status_code == 200:
+                    model = response.model.model
+                    model.print()
+                    sys.exit(0)
+                else:
+                    sys.exit(1)
+            else:
+                print(TRACE_MISSING)
+                sys.exit(1)
+
+        if options.get_virtual_table_lines:
+            if options.uuid is not None:
+                if options.table_line_index is None and options.table_times is None:
+                    print("Provide at least one of requested --table-line-index or --table-times for the virtual table data")
+                    sys.exit(1)
+
+                if options.table_line_count is None:
+                    print("Provide requested --table-line-count for the virtual table data")
+                    sys.exit(1)
+
+                parameters = {
+                    TspClient.PARAMETERS_KEY: {
+                        TspClient.REQUESTED_TABLE_LINE_COUNT_KEY: int(options.table_line_count),
+                        TspClient.REQUESTED_TABLE_LINE_COLUMN_IDS_KEY: list(map(int, options.table_column_ids)) if options.table_column_ids is not None else [],
+                        TspClient.REQUESTED_TABLE_LINE_SEACH_DIRECTION_KEY: options.table_search_direction if options.table_search_direction is not None else "NEXT"
+                    }
+                }
+
+                if options.table_times is not None:
+                    parameters[TspClient.PARAMETERS_KEY][TspClient.REQUESTED_TIME_KEY] = list(map(int, options.table_times))
+                else:
+                    parameters[TspClient.PARAMETERS_KEY][TspClient.REQUESTED_TABLE_LINE_INDEX_KEY] = int(options.table_line_index)
+
+                if options.table_search_expression is not None:
+                    parameters[TspClient.PARAMETERS_KEY][TspClient.REQUESTED_TABLE_LINE_SEARCH_EXPRESSION_KEY] = {}
+                    for column_id, expression in options.table_search_expression:
+                        for column_id, expression in options.table_search_expression:
+                            parameters[TspClient.PARAMETERS_KEY][TspClient.REQUESTED_TABLE_LINE_SEARCH_EXPRESSION_KEY][str(column_id)] = str(expression)
+
+                response = tsp_client.fetch_virtual_table_lines(options.uuid, options.get_virtual_table_lines, parameters)
+                if response.status_code == 200:
+                    model = response.model.model
+                    model.print()
+                    sys.exit(0)
+                else:
+                    sys.exit(1)
+            else:
+                print(TRACE_MISSING)
+                sys.exit(1)
+
+        if options.list_configuration_sources:
+            response = tsp_client.fetch_configuration_sources()
+            if response.status_code == 200:
+                configuration_source_set = response.model
+                if not configuration_source_set or len(configuration_source_set.configuration_source_set) == 0:
+                    print('No configuration sources available')
+                else:
+                    print('Successfully listed configuration sources')
+                    print('-----------------------------------------')
+                    print(response.model.to_json())
+                sys.exit(0)
+            else:
+                sys.exit(1)
+
+        if options.list_configuration_source:
+            response = tsp_client.fetch_configuration_source(options.list_configuration_source)
+            if response.status_code == 200:
+                print('Successfully listed configuration source')
+                print('----------------------------------------')
+                print(response.model.to_json())
+                sys.exit(0)
+            else:
+                print('No such configuration source')
+                sys.exit(1)
+
+        if options.list_configurations:
+            response = tsp_client.fetch_configurations(options.list_configurations)
+            if response.status_code == 200:
+                configuration_set = response.model
+                if not configuration_set or len(configuration_set.configuration_set) == 0:
+                    print('No configurations loaded')
+                else:
+                    print('Successfully listed configurations')
+                    print('----------------------------------')
+                    print(response.model.to_json())
+                sys.exit(0)
+            else:
+                sys.exit(1)
+
+
+        if options.list_configuration:
+            if options.type_id is not None:
+                response = tsp_client.fetch_configuration(options.type_id, options.list_configuration)
+                if response.status_code == 200:
+                    print('Successfully listed configuration')
+                    print('---------------------------------')
+                    print(response.model.to_json())
+                    sys.exit(0)
+                else:
+                    print('No such configuration')
+                    sys.exit(1)
+            else:
+                print("No type id of configuration provided")
+                sys.exit(1)
+
+
+        if options.load_configuration:
+            if not options.type_id:
+                print("No type-id for loading of configuration provided")
+                sys.exit(1)
+
+            params = __get_parameters(options)
+
+            response = tsp_client.post_configuration(options.type_id, params)
+            if response.status_code == 200:
+                print('Successfully loaded configuration')
+                print('---------------------------------')
+                print(response.model.to_json())
+                sys.exit(0)
+            else:
+                sys.exit(1)
+
+        if options.update_configuration:
+            if not options.type_id:
+                print("No type-id for updating of configuration provided")
+                sys.exit(1)
+
+            if not options.config_id:
+                print("No config-id of configuration provided")
+                sys.exit(1)
+
+            params = __get_parameters(options)
+
+            response = tsp_client.put_configuration(options.type_id, options.config_id, params)
+            if response.status_code == 200:
+                print('Successfully updated configuration')
+                print('---------------------------------')
+                print(response.model.to_json())
+                sys.exit(0)
+            else:
+                sys.exit(1)
+
+        if options.delete_configuration:
+            if options.type_id is not None:
+                response = tsp_client.delete_configuration(options.type_id, options.delete_configuration)
+                if response.status_code == 200:
+                    print('Successfully deleted configuration')
+                    print('---------------------------------')
+                    print(response.model.to_json())
+                    sys.exit(0)
+                else:
+                    sys.exit(1)
+            else:
+                print("No source typeId provided to delete this configuration")
+
+        if options.list_output_configuration_sources:
+            if not options.uuid:
+                print(TRACE_MISSING)
+                sys.exit(1)
+
+            response = tsp_client.fetch_output_configuration_sources(options.uuid, options.list_output_configuration_sources)
+            if response.status_code == 200:
+                configuration_source_set = response.model
+                if not configuration_source_set or len(configuration_source_set.configuration_source_set) == 0:
+                    print('No configuration sources available')
+                else:
+                    print('Successfully listed configuration sources')
+                    print('-----------------------------------------')
+                    print(configuration_source_set.to_json())
+                sys.exit(0)
+            else:
+                sys.exit(1)
+
+        if options.list_output_configuration_source:
+            if not options.uuid:
+                print(TRACE_MISSING)
+                sys.exit(1)
+
+            if not options.output_id:
+                print("No output ID provided")
+                sys.exit(1)
+
+            response = tsp_client.fetch_output_configuration_source(options.uuid, options.output_id, options.list_output_configuration_source)
+            if response.status_code == 200:
+                configuration_source = response.model
+                if not configuration_source:
+                    print('No configuration sources available')
+                else:
+                    print('Successfully listed configuration sources')
+                    print('-----------------------------------------')
+                    print(configuration_source.to_json())
+                sys.exit(0)
+            else:
+                sys.exit(1)
+
+        if options.create_output:
+            if not options.uuid:
+                print(TRACE_MISSING)
+                sys.exit(1)
+
+            params = __get_parameters(options)
+
+            response = tsp_client.create_derived_output(options.uuid, options.create_output, params)
+            if response.status_code == 200:
+                print('Successfully created derived output')
+                print('-----------------------------------')
+                print(response.model.to_json())
+                sys.exit(0)
+            else:
+                sys.exit(1)
+
+        if options.delete_output:
+            if not options.uuid:
+                print(TRACE_MISSING)
+                sys.exit(1)
+
+            if not options.output_id:
+                print("No parent output ID provided")
+                sys.exit(1)
+            
+            response = tsp_client.delete_derived_output(options.uuid, options.output_id, options.delete_output)
+            if response.status_code == 200:
+                print('Successfully deleted derived output')
+                print('-----------------------------------')
+                print(response.model.to_json())
+                sys.exit(0)
+            else:
+                sys.exit(1)
+
+        if options.get_health:
+            response = tsp_client.fetch_health()
+            if response.status_code == 200:
+                print(response.model)
+                sys.exit(0)
+            else:
+                sys.exit(1)
+
+        if options.get_identifier:
+            response = tsp_client.fetch_identifier()
+            if response.status_code == 200:
+                print('Successfully listed identifier')
+                print('------------------------------')
+                print(response.model.to_json())
+                sys.exit(0)
+            else:
+                sys.exit(1)
+
+    except requests.exceptions.ConnectionError as e:
+        print('Unexpected error: {0}'.format(e))
+        sys.exit(1)
+
+sys.exit(0)

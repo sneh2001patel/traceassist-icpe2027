@@ -1,0 +1,523 @@
+{
+ "system": "traceassist",
+ "build": "a4162fd526b12d22",
+ "knowledge": "1d7092adf385d1ab",
+ "run": 3,
+ "id": "Q29b__filestore-5705",
+ "question_id": "Q29b",
+ "run_id": "filestore-5705",
+ "trace": "/home/snehpatel/research/TraceCompass AI Agent/symptom_bench/runs/filestore-5705/trace/kernel",
+ "prompt": "Is saving slow in filestore, is it waiting on the disk? Which thread, and how much?\n\nBegin your answer with exactly one line: \"Verdict: yes\", \"Verdict: no\", or \"Verdict: cannot tell from this trace\". Then answer the question.",
+ "started": "2026-11-22T23:22:41-0500",
+ "status": "ok",
+ "answer": "Verdict: no\n\n## Disk I/O\n\nThe trace does **not** show saving slowed by disk waits. Over the whole trace (offsets **0\u201330,664.986 ms**), TID **638771** (`filestore`, the main thread) spent just **0.187 ms** in storage I/O calls: six reads/writes in total. Its listed write took **0.165 ms**.\n\n## Where the long wait was\n\nTID 638771 did have a **30,000.188 ms futex** call, starting at offset **92.007 ms**. It spent **30,056.2 ms**\u2014**99.7%** of its alive time\u2014blocked in futex calls, which are synchronization waits, not disk I/O [1]. The trace reports that TID **638773** (`writer`) woke it; it does not establish the underlying reason for the main thread\u2019s futex wait.\n\nThe writer\u2019s longest call was a **5.884 ms `clock_nanosleep`**, and the reader\u2019s longest was a **200.447 ms `clock_nanosleep`**. These findings do not show either thread waiting on slow disk I/O.\n\n[1] describes futex waits as typically synchronization waits, such as for a mutex or condition variable.\n\n## All sources used:\n1) Blocking in futex - https://man7.org/linux/man-pages/man2/futex.2.html",
+ "response": {
+  "question": "Is saving slow in filestore, is it waiting on the disk? Which thread, and how much?\n\nBegin your answer with exactly one line: \"Verdict: yes\", \"Verdict: no\", or \"Verdict: cannot tell from this trace\". Then answer the question.",
+  "trace_path": "/home/snehpatel/research/TraceCompass AI Agent/symptom_bench/runs/filestore-5705/trace/kernel",
+  "plan": {
+   "scope": "thread",
+   "tid": 638771,
+   "intent": "explain_time",
+   "describe_words": null,
+   "deviation_words": null,
+   "find_late_cycles": false,
+   "resolved_from_question": {
+    "tid": 638771,
+    "name": "filestore",
+    "matched": "thread search: TID 638771 (filestore): longest system call 30000.188 ms, 149.7x the median of the other suspects (200.447 ms)",
+    "source": "thread_search"
+   },
+   "details_from": "thread_finder symptom slow_syscalls_io: [syscalls]",
+   "thread_finder": {
+    "scope": "thread",
+    "symptom": "slow_syscalls_io",
+    "target": {
+     "tid": null,
+     "pid": null,
+     "reason": "The question asks which filestore thread is responsible for potentially slow saving or disk I/O, but it does not name that thread."
+    },
+    "suspects": [
+     {
+      "tid": 638773,
+      "pid": 638771,
+      "reason": "The writer thread is the strongest candidate: it has the highest running share among filestore workers (0.9%) and 6,380 wakeups, consistent with frequent write-related system calls."
+     },
+     {
+      "tid": 638774,
+      "pid": 638771,
+      "reason": "The reader thread performs measurable work (0.1% running) and has 299 wakeups, so storage-related waits should also be checked there."
+     },
+     {
+      "tid": 638771,
+      "pid": 638771,
+      "reason": "The filestore main thread has a 0.3% running share and 3 wakeups; it may coordinate saving or issue I/O itself."
+     }
+    ],
+    "question_numbers": {
+     "magnitude_ms": null,
+     "period_ms": null,
+     "count": null,
+     "range_start_ms": null,
+     "range_end_ms": null
+    },
+    "follow_up": false,
+    "reasoning": "This is thread scope because the engineer explicitly asks which thread in filestore performs the potentially slow disk operation. The symptom is slow system calls or I/O, with the writer ranked first based on its role, activity, and high wakeup count.",
+    "target_clear": false,
+    "used": "search pick",
+    "picked": "TID 638771 (filestore)",
+    "search": {
+     "symptom": "slow_syscalls_io",
+     "pick": "TID 638771",
+     "pick_name": "filestore",
+     "pick_reason": "TID 638771 (filestore): longest system call 30000.188 ms, 149.7x the median of the other suspects (200.447 ms)",
+     "pick_share_percent": 100.0,
+     "confidence": "low",
+     "exit": "1 analyses not run: they would have gone over the budget",
+     "suspects": [
+      {
+       "tid": 638773,
+       "pid": 638771,
+       "label": "TID 638773",
+       "name": "writer",
+       "finder_reason": "The writer thread is the strongest candidate: it has the highest running share among filestore workers (0.9%) and 6,380 wakeups, consistent with frequent write-related system calls.",
+       "level_reached": 3,
+       "verdict": "no",
+       "verdict_reason": "Its longest call was 5.884 ms in clock_nanosleep, a timer wait, and its longest-call value was far below the peer median of 30,000.188 ms.",
+       "verdict_level": 3,
+       "score": 0.0,
+       "share_percent": 0.0,
+       "evidence": {
+        "level_1": {
+         "tid": 638773,
+         "available": true,
+         "lifetime_ms": 30010.048653,
+         "running_ms": 260.780622,
+         "user_mode_ms": 36.612042,
+         "kernel_mode_ms": 224.16858,
+         "waiting_for_cpu_ms": 84.147789,
+         "blocked_ms": 29655.301045,
+         "longest_blocked_ms": 5.855898,
+         "longest_blocked_start_ns": 1795223708464836132,
+         "longest_blocked_end_ns": 1795223708470692030,
+         "longest_blocked_start_offset_ms": 25292.147525,
+         "longest_wait_for_cpu_ms": 0.631627,
+         "longest_wait_for_cpu_start_ns": 1795223701239803162,
+         "longest_wait_for_cpu_end_ns": 1795223701240434789,
+         "longest_wait_for_cpu_start_offset_ms": 18067.114555,
+         "system_calls": 18059,
+         "in_system_calls_ms": 29973.408011,
+         "longest_system_call_ms": 5.883968,
+         "longest_system_call_start_ns": 1795223708464832972,
+         "longest_system_call_end_ns": 1795223708470716940,
+         "longest_system_call_start_offset_ms": 25292.144365,
+         "longest_system_call_name": "clock_nanosleep"
+        },
+        "level_2": {
+         "claim": "18,059 system calls here (median 0.033 ms, p99 5.340 ms); the longest: exit 9.842 ms at 30,092.171 ms; clock_nanosleep 5.884 ms at 25,292.144 ms; clock_nanosleep 5.857 ms at 24,267.144 ms; clock_nanosleep 5.847 ms at 13,032.144 ms; clock_nanosleep 5.845 ms at 23,257.144 ms.",
+         "call_count": 18059,
+         "median_ms": 0.03308,
+         "longest": [
+          {
+           "system_call": "exit",
+           "duration_ms": 9.842137,
+           "start_offset_ms": 30092.171436
+          },
+          {
+           "system_call": "clock_nanosleep",
+           "duration_ms": 5.883968,
+           "start_offset_ms": 25292.144365
+          },
+          {
+           "system_call": "clock_nanosleep",
+           "duration_ms": 5.856588,
+           "start_offset_ms": 24267.143661
+          }
+         ]
+        },
+        "level_3": {
+         "window": "its longest system call",
+         "start_offset_ms": 25292.144365,
+         "length_ms": 5.883967,
+         "findings": [
+          "decomposition: In this window, the thread's time was: 99.5% BLOCKED (5.856 ms), 0.3% RUNNABLE_WAITING_FOR_CPU (0.020 ms), 0.1% RUNNING_SYSTEM_CALL (0.008 ms).",
+          "running.cpu_placement: It ran only on CPU 3 here (0.008 ms on the CPU).",
+          "blocked.wakers: Across its 1 waits here, what ended them: a timer (sleep or timeout): 1 waits, 5.856 ms in total, typically 5.856 ms, in clock_nanosleep.",
+          "blocked.syscalls: Blocked for 5.856 ms (99.5% of its alive time here); the 1 longest waits (longest 5.856 ms) were inside: clock_nanosleep (1 of 1).",
+          "blocked.wake_chain: Critical path of TID 638773 over this gap, in time order: TID 638773 (writer) TIMER 5.856 ms. No participant besides the requested thread was found in the critical path for this window. This matches a known limitation, not necessarily a real absence of a cause: the wake may have come from a cross-CPU remote wakeup or a network/softirq-delivered event, neither of which OSCriticalPathModule can currently attribute to the real waking task."
+         ]
+        }
+       }
+      },
+      {
+       "tid": 638774,
+       "pid": 638771,
+       "label": "TID 638774",
+       "name": "reader",
+       "finder_reason": "The reader thread performs measurable work (0.1% running) and has 299 wakeups, so storage-related waits should also be checked there.",
+       "level_reached": 3,
+       "verdict": "no",
+       "verdict_reason": "Its longest call was 200.447 ms in clock_nanosleep and level 3 attributes the 200.418 ms wait to a timer, not disk I/O.",
+       "verdict_level": 3,
+       "score": 0.0,
+       "share_percent": 0.0,
+       "evidence": {
+        "level_1": {
+         "tid": 638774,
+         "available": true,
+         "lifetime_ms": 30064.026213,
+         "running_ms": 17.059503,
+         "user_mode_ms": 3.420732,
+         "kernel_mode_ms": 13.638771,
+         "waiting_for_cpu_ms": 4.064215,
+         "blocked_ms": 30035.138547,
+         "longest_blocked_ms": 200.417731,
+         "longest_blocked_start_ns": 1795223683264728327,
+         "longest_blocked_end_ns": 1795223683465146058,
+         "longest_blocked_start_offset_ms": 92.03972,
+         "longest_wait_for_cpu_ms": 0.180029,
+         "longest_wait_for_cpu_start_ns": 1795223708306981964,
+         "longest_wait_for_cpu_end_ns": 1795223708307161993,
+         "longest_wait_for_cpu_start_offset_ms": 25134.293357,
+         "system_calls": 1502,
+         "in_system_calls_ms": 30060.563581,
+         "longest_system_call_ms": 200.446621,
+         "longest_system_call_start_ns": 1795223683264723237,
+         "longest_system_call_end_ns": 1795223683465169858,
+         "longest_system_call_start_offset_ms": 92.03463,
+         "longest_system_call_name": "clock_nanosleep"
+        },
+        "level_2": {
+         "claim": "1,502 system calls here (median 0.013 ms, p99 100.387 ms); the longest: clock_nanosleep 200.447 ms at 92.035 ms; clock_nanosleep 100.552 ms at 25,735.239 ms; clock_nanosleep 100.527 ms at 15,717.852 ms; clock_nanosleep 100.521 ms at 29,145.256 ms; clock_nanosleep 100.488 ms at 11,207.872 ms.",
+         "call_count": 1502,
+         "median_ms": 0.01312,
+         "longest": [
+          {
+           "system_call": "clock_nanosleep",
+           "duration_ms": 200.446621,
+           "start_offset_ms": 92.03463
+          },
+          {
+           "system_call": "clock_nanosleep",
+           "duration_ms": 100.551659,
+           "start_offset_ms": 25735.239137
+          },
+          {
+           "system_call": "clock_nanosleep",
+           "duration_ms": 100.527027,
+           "start_offset_ms": 15717.852333
+          }
+         ]
+        },
+        "level_3": {
+         "window": "its longest system call",
+         "start_offset_ms": 92.03463,
+         "length_ms": 200.44662,
+         "findings": [
+          "decomposition: In this window, the thread's time was: 100.0% BLOCKED (200.418 ms).",
+          "running.cpu_placement: It ran only on CPU 4 here (0.009 ms on the CPU).",
+          "blocked.wakers: Across its 1 waits here, what ended them: a timer (sleep or timeout): 1 waits, 200.418 ms in total, typically 200.418 ms, in clock_nanosleep.",
+          "blocked.syscalls: Blocked for 200.418 ms (100.0% of its alive time here); the 1 longest waits (longest 200.418 ms) were inside: clock_nanosleep (1 of 1).",
+          "blocked.wake_chain: Critical path of TID 638774 over this gap, in time order: TID 638774 (reader) TIMER 200.418 ms. No participant besides the requested thread was found in the critical path for this window. This matches a known limitation, not necessarily a real absence of a cause: the wake may have come from a cross-CPU remote wakeup or a network/softirq-delivered event, neither of which OSCriticalPathModule can currently attribute to the real waking task."
+         ]
+        }
+       }
+      },
+      {
+       "tid": 638771,
+       "pid": 638771,
+       "label": "TID 638771",
+       "name": "filestore",
+       "finder_reason": "The filestore main thread has a 0.3% running share and 3 wakeups; it may coordinate saving or issue I/O itself.",
+       "level_reached": 2,
+       "verdict": "weak",
+       "verdict_reason": "It stands out with a 30,000.188 ms futex call, but the measured call is not disk I/O and level 2 does not explain what it was waiting for.",
+       "verdict_level": 3,
+       "score": 0.248,
+       "share_percent": 100.0,
+       "evidence": {
+        "level_1": {
+         "tid": 638771,
+         "available": true,
+         "lifetime_ms": 30145.721398,
+         "running_ms": 80.85562,
+         "user_mode_ms": 76.800144,
+         "kernel_mode_ms": 4.055476,
+         "waiting_for_cpu_ms": 0.06372,
+         "blocked_ms": 30056.189835,
+         "longest_blocked_ms": 30000.168626,
+         "longest_blocked_start_ns": 1795223683264698157,
+         "longest_blocked_end_ns": 1795223713264866783,
+         "longest_blocked_start_offset_ms": 92.00955,
+         "longest_wait_for_cpu_ms": 0.02493,
+         "longest_wait_for_cpu_start_ns": 1795223713320909152,
+         "longest_wait_for_cpu_end_ns": 1795223713320934082,
+         "longest_wait_for_cpu_start_offset_ms": 30148.220545,
+         "system_calls": 118,
+         "in_system_calls_ms": 30068.440788,
+         "longest_system_call_ms": 30000.188266,
+         "longest_system_call_start_ns": 1795223683264695717,
+         "longest_system_call_end_ns": 1795223713264883983,
+         "longest_system_call_start_offset_ms": 92.00711,
+         "longest_system_call_name": "futex"
+        },
+        "level_2": {
+         "claim": "118 system calls here (median 0.001 ms, p99 56.051 ms); the longest: futex 30000.188 ms at 92.007 ms; futex 56.051 ms at 30,092.198 ms; exit_group 8.624 ms at 30,151.380 ms; unlink 3.035 ms at 30,148.258 ms; write 0.165 ms at 91.784 ms.",
+         "call_count": 118,
+         "median_ms": 0.00109,
+         "longest": [
+          {
+           "system_call": "futex",
+           "duration_ms": 30000.188266,
+           "start_offset_ms": 92.00711
+          },
+          {
+           "system_call": "futex",
+           "duration_ms": 56.050779,
+           "start_offset_ms": 30092.197936
+          },
+          {
+           "system_call": "exit_group",
+           "duration_ms": 8.623693,
+           "start_offset_ms": 30151.379548
+          }
+         ]
+        }
+       }
+      }
+     ],
+     "judge": [
+      {
+       "level": 2,
+       "status": "done",
+       "cached": false,
+       "verdicts": [
+        {
+         "suspect": "TID 638773",
+         "verdict": "no",
+         "reason": "Its longest calls were clock_nanosleep at 5.884 ms and exit at 9.842 ms; the measurements show no slow disk I/O call."
+        },
+        {
+         "suspect": "TID 638774",
+         "verdict": "no",
+         "reason": "Although its longest call was 200.447 ms, it was clock_nanosleep, not disk I/O."
+        },
+        {
+         "suspect": "TID 638771",
+         "verdict": "no",
+         "reason": "Its 30,000.188 ms longest call was futex, while its write took only 0.165 ms, so the evidence does not show slow saving while waiting on disk."
+        }
+       ],
+       "reasoning": "The long waits measured are clock_nanosleep or futex calls, not slow file or disk operations. The only listed write took 0.165 ms.",
+       "ms": 4209.271
+      },
+      {
+       "level": 3,
+       "status": "done",
+       "cached": false,
+       "verdicts": [
+        {
+         "suspect": "TID 638773",
+         "verdict": "no",
+         "reason": "Its longest call was 5.884 ms in clock_nanosleep, a timer wait, and its longest-call value was far below the peer median of 30,000.188 ms."
+        },
+        {
+         "suspect": "TID 638774",
+         "verdict": "no",
+         "reason": "Its longest call was 200.447 ms in clock_nanosleep and level 3 attributes the 200.418 ms wait to a timer, not disk I/O."
+        },
+        {
+         "suspect": "TID 638771",
+         "verdict": "weak",
+         "reason": "It stands out with a 30,000.188 ms futex call, but the measured call is not disk I/O and level 2 does not explain what it was waiting for."
+        }
+       ],
+       "reasoning": "The writer and reader\u2019s longest calls are timer sleeps, while the filestore thread\u2019s exceptionally long wait is a futex rather than a measured disk operation. The trace therefore does not establish that saving is slow because of disk I/O.",
+       "ms": 7226.293
+      }
+     ],
+     "budget": {
+      "event_count": 1572077,
+      "cap_events": 1179058,
+      "spent_events": 473100,
+      "spent_percent_of_cap": 40.1,
+      "wall_ms": 12562.95,
+      "analyses": [
+       {
+        "suspect": "TID 638773",
+        "level": 1,
+        "analysis": "state profile (state history)",
+        "estimated_cost_events": 76925,
+        "status": "done",
+        "ms": 70.516
+       },
+       {
+        "suspect": "TID 638774",
+        "level": 1,
+        "analysis": "state profile (state history)",
+        "estimated_cost_events": 77063,
+        "status": "done",
+        "ms": 81.02
+       },
+       {
+        "suspect": "TID 638771",
+        "level": 1,
+        "analysis": "state profile (state history)",
+        "estimated_cost_events": 77273,
+        "status": "done",
+        "ms": 73.307
+       },
+       {
+        "suspect": "TID 638771",
+        "level": 2,
+        "analysis": "syscalls.longest (state system)",
+        "estimated_cost_events": 77273,
+        "status": "done",
+        "ms": 74.261
+       },
+       {
+        "suspect": "TID 638774",
+        "level": 2,
+        "analysis": "syscalls.longest (state system)",
+        "estimated_cost_events": 77063,
+        "status": "done",
+        "ms": 74.363
+       },
+       {
+        "suspect": "TID 638773",
+        "level": 2,
+        "analysis": "syscalls.longest (state system)",
+        "estimated_cost_events": 76925,
+        "status": "done",
+        "ms": 93.101
+       },
+       {
+        "suspect": "TID 638771",
+        "level": 3,
+        "analysis": "state split and per-state explainers of its longest system call",
+        "estimated_cost_events": 1537995,
+        "status": "not run: over the budget"
+       },
+       {
+        "suspect": "TID 638774",
+        "level": 3,
+        "analysis": "state split and per-state explainers of its longest system call",
+        "estimated_cost_events": 10276,
+        "status": "done",
+        "ms": 87.916
+       },
+       {
+        "suspect": "TID 638773",
+        "level": 3,
+        "analysis": "state split and per-state explainers of its longest system call",
+        "estimated_cost_events": 302,
+        "status": "done",
+        "ms": 572.406
+       }
+      ]
+     }
+    }
+   }
+  },
+  "target": {
+   "tid": 638771,
+   "name": "filestore",
+   "trace_path": "/home/snehpatel/research/TraceCompass AI Agent/symptom_bench/runs/filestore-5705/trace/kernel"
+  },
+  "view_plan": {
+   "source": "view_picker",
+   "views": [
+    {
+     "id": "org.eclipse.linuxtools.tmf.analysis.graph.ui.criticalpath.view.criticalpathview",
+     "name": "Critical Path",
+     "key": "critical_path",
+     "look_at": "Follow TID 638771 (filestore) through this wait and inspect the dependency path to TID 638773 (writer), the thread that woke it. The findings identify the wait as a futex wait, not disk I/O.",
+     "tsp_output": null
+    },
+    {
+     "id": "org.eclipse.tracecompass.analysis.os.linux.views.controlflow",
+     "name": "Control Flow",
+     "key": "control_flow",
+     "look_at": "Inspect TID 638771 (filestore)'s state across the wait; its blocked stretch shows that it was waiting rather than running save work. The selected interval corresponds to the 30000.169 ms wait.",
+     "tsp_output": "org.eclipse.tracecompass.internal.analysis.os.linux.core.threadstatus.ThreadStatusDataProvider"
+    },
+    {
+     "id": "org.eclipse.tracecompass.analysis.timing.ui.segstore.table:org.eclipse.tracecompass.analysis.os.linux.latency.syscall",
+     "name": "System Call Latencies",
+     "key": "syscall_latency_table",
+     "look_at": "Find TID 638771 (filestore)'s futex call at this interval to see its recorded duration, 30000.188 ms. This shows the long delay was in a futex call, not a disk system call.",
+     "tsp_output": "org.eclipse.tracecompass.analysis.timing.core.segmentstore.SegmentStoreTableDataProvider:org.eclipse.tracecompass.analysis.os.linux.latency.syscall"
+    }
+   ],
+   "selection": {
+    "start_ns": 1795223683264698157,
+    "end_ns": 1795223713264866783,
+    "start_offset_ms": 92.00955,
+    "end_offset_ms": 30092.178176
+   },
+   "zoom": {
+    "start_ns": 1795223683172688607,
+    "end_ns": 1795223713837674671,
+    "rule": "Critical Path: pad 0.05 x the moment each side, at least 0.05 ms"
+   },
+   "moment": "critical_path_wait",
+   "follow_tid": 638771,
+   "select_tid": 638771,
+   "plot_tids": [],
+   "plot_series": [],
+   "reason": "the wait whose critical path was computed (a typical wait of the group in blocked.wakers that is not waiting for new work)",
+   "picker_reasoning": "The critical-path wait is the key stretch: it shows what filestore waited on and who woke it. Control Flow shows filestore's blocked state, while the syscall table makes the futex call and its duration explicit.",
+   "views_not_offered": [
+    "kernel_memory (no kmem_mm_page_* events in the trace)"
+   ],
+   "rule_based": {
+    "views": [
+     "System Call Latency vs Time",
+     "System Call Latencies",
+     "Control Flow"
+    ],
+    "reason": "the thread's longest system call (futex)"
+   },
+   "clock_range": "20:14:43.264 698 157 \u2013 20:15:13.264 866 783",
+   "summary": "Critical Path + Control Flow + System Call Latencies, 92.010\u201330,092.178 ms into the trace (20:14:43.264 698 157 \u2013 20:15:13.264 866 783 on the views' time axis) (following TID 638771): the wait whose critical path was computed (a typical wait of the group in blocked.wakers that is not waiting for new work).\n- **Critical Path:** Follow TID 638771 (filestore) through this wait and inspect the dependency path to TID 638773 (writer), the thread that woke it. The findings identify the wait as a futex wait, not disk I/O.\n- **Control Flow:** Inspect TID 638771 (filestore)'s state across the wait; its blocked stretch shows that it was waiting rather than running save work. The selected interval corresponds to the 30000.169 ms wait.\n- **System Call Latencies:** Find TID 638771 (filestore)'s futex call at this interval to see its recorded duration, 30000.188 ms. This shows the long delay was in a futex call, not a disk system call."
+  },
+  "why_section": "**Why this thread:** TID 638771 (filestore), 100%. It stands out with a 30,000.188 ms futex call, but the measured call is not disk I/O and level 2 does not explain what it was waiting for. Checked, no sign of it: TID 638773 (writer), TID 638774 (reader). Confidence: low. (Search: 1 analyses not run: they would have gone over the budget.)",
+  "stage_durations_ms": {
+   "target_resolver": 8.319103,
+   "thread_finder": 8109.796759,
+   "thread_search": 12563.035786,
+   "trace_overview": 0.098999,
+   "unified_explainer": 189.766496,
+   "tmll_analysis": 10634.184983,
+   "rag_retrieval": 5489.801077,
+   "view_picker": 5619.831861,
+   "llm_call": 8044.328251
+  },
+  "trace_source": "own_copy",
+  "findings_count": 11,
+  "response_id": "resp_0739a22c13d31b4c006b03bfbcc84487d1a1a89692e8a92e83",
+  "model": "gpt-6-luna",
+  "usage": {
+   "input_tokens": 16884,
+   "input_tokens_details": {
+    "cache_write_tokens": 12935,
+    "cache_write_tokens_details": {
+     "ttl_12h_tokens": 0,
+     "ttl_30m_tokens": 12935
+    },
+    "cached_tokens": 3946
+   },
+   "output_tokens": 814,
+   "output_tokens_details": {
+    "reasoning_tokens": 511
+   },
+   "total_tokens": 17698
+  }
+ },
+ "elapsed_s": 50.66,
+ "model": "gpt-6-luna",
+ "verdict": {
+  "verdict": "absent",
+  "position": "first",
+  "line": "Verdict: no"
+ }
+}

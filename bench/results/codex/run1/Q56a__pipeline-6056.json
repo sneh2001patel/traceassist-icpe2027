@@ -1,0 +1,39 @@
+{
+ "system": "codex",
+ "build": "583a6ff11f5adb23",
+ "run": 1,
+ "id": "Q56a__pipeline-6056",
+ "question_id": "Q56a",
+ "run_id": "pipeline-6056",
+ "trace": "/home/snehpatel/research/TraceCompass AI Agent/symptom_bench/runs/pipeline-6056/trace/kernel",
+ "prompt": "In pipeline, does each new item wake many waiting threads, with all but one going straight back to sleep? If so, which threads, and what change would fix it?\n\nBegin your answer with exactly one line: \"Verdict: yes\", \"Verdict: no\", or \"Verdict: cannot tell from this trace\". Then answer the question.",
+ "started": "2026-11-23T16:23:11-0500",
+ "model": "gpt-6-luna",
+ "reasoning_effort": "medium",
+ "question_timeout_s": 1800,
+ "elapsed_s": 521.42,
+ "exit_code": 0,
+ "session_id": "01a20a4a-9ed5-7501-b8cd-fdb479b75712",
+ "turns": 1,
+ "usage": {
+  "input_tokens": 1413603,
+  "cached_tokens": 1312599,
+  "output_tokens": 28863,
+  "reasoning_tokens": 21337
+ },
+ "n_commands": 25,
+ "item_types": {
+  "agent_message": 4,
+  "command_execution": 25
+ },
+ "flagged_commands": [],
+ "errors": [],
+ "warnings": [],
+ "answer": "Verdict: no\n\nThe steady state shows **one pipeline worker plus TID 643704** woken per producer cycle, not many workers waking together. Thread `pipeline` TID 643703, running on CPU 4, makes two `futex(FUTEX_WAKE_PRIVATE, 1)` calls about 1.46 ms apart. Each returns 1: one wakes TID 643704 on CPU 3; the other wakes one of TIDs 643699\u2013643702 on CPUs 5\u20138, rotating among them. The other three stage workers remain asleep.\n\nTID 643704 does go back to a futex wait quickly: a median of about 7 \u03bcs after being woken. The selected stage worker takes about 0.5 ms before its next wait, consistent with doing work. Across the trace, TID 643703 made 41,060 such wake calls: 20,477 to TID 643704 and about 5,145 to each of the four stage workers. The wake calls averaged roughly 0.6 \u03bcs. The trace has no user level item markers, so the item boundary is inferred from this repeated cycle.\n\nIf TID 643704 has no per item work, remove or condition its per item notification. Send each item to the selected stage worker and wake that worker alone; reserve a broadcast for cases where every waiter must respond.",
+ "status": "ok",
+ "verdict": {
+  "verdict": "absent",
+  "position": "first",
+  "line": "Verdict: no"
+ }
+}
