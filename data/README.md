@@ -13,4 +13,7 @@ The baselines' inputs can be rebuilt from the traces, with `slice_baselines.py p
 
 Which fault each run has is in `bench/runs/index.csv`, and each run's answer key is in `bench/runs/<run>/ground_truth/`. Never give either to a system under test.
 
-**Where the archives are published:** not yet. The archives exist on the authors' machine only, so the URL still needs to be added here once they are uploaded.
+**Getting the archives:** they are assets of the GitHub release
+[v1.0-icpe2027](https://github.com/sneh2001patel/traceassist-icpe2027/releases/tag/v1.0-icpe2027).
+`data/download.sh` downloads them into the folders above (1.3 GB), and `data/unpack.sh` checks them
+against `SHA256SUMS` and unpacks them.

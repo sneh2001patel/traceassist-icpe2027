@@ -23,7 +23,7 @@ in Natural Language* (ICPE 2027, Industry Track):
 | `bench/runs/<run>/` | One folder per recorded trace: `ground_truth/`, `capture.json` and `program.log`. The trace itself (`trace/`) is unpacked from `data/`. |
 | `bench/baselines/` | The four baselines. See [bench/baselines/README.md](bench/baselines/README.md). |
 | `bench/results/` | Saved answers. `traceassist/run1`–`run3` are TraceAssist's three runs; `llm_only`, `rag`, `tmll` and `codex` each have `run1`. Each run comes with its scores (`run<N>_scores.txt` and `.csv`), and the Codex run also includes the agents' transcripts. |
-| `data/` | The large files, as archives outside git: the 56 traces, the baselines' inputs, and the stock Trace Server. See [data/README.md](data/README.md). |
+| `data/` | The large files, as archives outside git and attached to the GitHub release [v1.0-icpe2027](https://github.com/sneh2001patel/traceassist-icpe2027/releases/tag/v1.0-icpe2027): the 56 traces, the baselines' inputs, and the stock Trace Server. See [data/README.md](data/README.md). |
 | `paper/` | The paper's LaTeX source. `figures/make_result_figures.py` draws Figures 4 and 5 from `bench/results`. |
 
 ## The frozen version
@@ -70,7 +70,7 @@ You need:
 
 All systems answer with `gpt-6-luna`. TraceAssist's thread finder uses `gpt-5.6-sol`.
 
-1. **Unpack the data:** `data/unpack.sh` checks the archives against `data/SHA256SUMS` and unpacks the traces, the baselines' inputs and the Trace Server.
+1. **Get the data:** `data/download.sh` downloads the archives from the GitHub release (1.3 GB), and `data/unpack.sh` checks them against `data/SHA256SUMS` and unpacks the traces, the baselines' inputs and the Trace Server.
 2. **TMLL service:**
 
    ```bash
