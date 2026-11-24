@@ -112,4 +112,10 @@ A system under test receives only a run's `trace/kernel` folder and the question
 ## Notes
 
 - The traces are whole-machine kernel recordings from one desktop (one kernel version, 30 s each). Besides the bench program, they show the desktop's own processes, their names and open file paths, and the user name. Several saved files keep the absolute paths of the machine they were recorded on.
-- Licenses: `tmll/` keeps TMLL's MIT license (Ericsson). A license for the rest of the repository has not been chosen yet.
+## Licenses
+
+- **Code:** MIT ([LICENSE](LICENSE)). `tmll/` is a fork of TMLL and keeps its own MIT license (Ericsson) for the upstream code.
+- **Data:** CC BY 4.0. This covers the traces and baseline inputs on Zenodo ([10.5281/zenodo.24489091](https://doi.org/10.5281/zenodo.24489091)) and the data files in this repository: the questions, symptoms, pairs, answer keys, and every system's answers and scores.
+- **Third-party files:**
+  - The stock Trace Compass Trace Server in the Zenodo record is Eclipse software, under EPL-2.0.
+  - `paper/acmart.cls` and `paper/ACM-Reference-Format.bst` are ACM's, under the LPPL.
